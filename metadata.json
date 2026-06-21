@@ -1,0 +1,10 @@
+{
+  "name": "Voice Agent Builder",
+  "description": "A SaaS app to create custom voice agents for your websites.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
