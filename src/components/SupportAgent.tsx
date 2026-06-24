@@ -30,11 +30,24 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
 
   const startRecording = async () => {
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const hostUrl = (window as any).AGENTVOX_ORIGIN ? new URL((window as any).AGENTVOX_ORIGIN) : window.location;
+      const protocol = hostUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       
       let queryParams: string;
       if (mode === "standalone") {
-        queryParams = window.location.search.replace('?', '');
+        if (window.AGENTVOX_CONFIG) {
+           const safeConfig: any = {};
+           for (const key in window.AGENTVOX_CONFIG) {
+              if (typeof window.AGENTVOX_CONFIG[key] === 'object') {
+                  safeConfig[key] = JSON.stringify(window.AGENTVOX_CONFIG[key]);
+              } else {
+                  safeConfig[key] = window.AGENTVOX_CONFIG[key];
+              }
+           }
+           queryParams = new URLSearchParams(safeConfig).toString();
+        } else {
+           queryParams = window.location.search.replace('?', '');
+        }
       } else {
         const customInstructions = `
           You are the Support Agent for our VoiceAgent Builder SaaS app.
@@ -64,7 +77,7 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
         }).toString();
       }
 
-      const ws = new WebSocket(`${protocol}//${window.location.host}/live?${queryParams}`);
+      const ws = new WebSocket(`${protocol}//${hostUrl.host}/live?${queryParams}`);
       wsRef.current = ws;
 
       const inputAudioCtx = new AudioContext({ sampleRate: 16000 });
