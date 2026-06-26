@@ -213,15 +213,15 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         }
       });
       
-    } catch(e: any) {
+    } catch(e) {
         console.error("Live API Error:", e);
-        if (clientWs.readyState === WebSocket.OPEN) {
-           clientWs.send(JSON.stringify({ type: 'error', message: "Agent is busy or unavailable. Please try again." }));
-        }
     }
   });
 
   app.get('/embed.js', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const serverOrigin = `${protocol}://${host}`;
@@ -408,7 +408,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
     function playAudioChunk(outputCtx, base64) {
       var pcmMatch = base64ToPcm(base64);
-      var buffer = outputCtx.createBuffer(1, pcmMatch.length, outputCtx.sampleRate);
+      var buffer = outputCtx.createBuffer(1, pcmMatch.length, 24000);
       buffer.getChannelData(0).set(pcmMatch);
       var source = outputCtx.createBufferSource();
       source.buffer = buffer;
@@ -460,11 +460,6 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
             ws.onmessage = function(event) {
                 var msg = JSON.parse(event.data);
-                if (msg.type === 'error') {
-                    statusText.innerText = msg.message;
-                    stopRecording();
-                    return;
-                }
                 if (msg.type === 'display_link') {
                     linkBox.style.display = 'block';
                     linkUrl.href = msg.payload.url;

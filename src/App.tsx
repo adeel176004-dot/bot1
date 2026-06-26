@@ -104,7 +104,7 @@ export default function App() {
 
   const playAudioChunk = (outputAudioCtx: AudioContext, base64: string) => {
     const pcmMatch = base64ToPcm(base64);
-    const buffer = outputAudioCtx.createBuffer(1, pcmMatch.length, outputAudioCtx.sampleRate);
+    const buffer = outputAudioCtx.createBuffer(1, pcmMatch.length, 24000);
     buffer.getChannelData(0).set(pcmMatch);
     
     const source = outputAudioCtx.createBufferSource();
@@ -559,28 +559,12 @@ export default function App() {
                <p className="text-slate-500 mb-6">Drop this script into the <code className="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-sm">&lt;body&gt;</code> of your website to let your customers talk to your voice agent.</p>
                
                <div className="bg-slate-900 rounded-xl p-4 relative group">
-                  <pre className="text-slate-300 text-sm overflow-x-auto font-mono leading-relaxed h-[180px] whitespace-pre-wrap">
-{`<script>
-  window.AGENTVOX_CONFIG = {
-    websiteName: "${saasConfig.websiteName.replace(/"/g, '\\"')}",
-    agentName: "${saasConfig.agentName.replace(/"/g, '\\"')}",
-    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},
-    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}
-  };
-</script>
-<script src="${window.location.origin}/embed.js" async></script>`}
+                  <pre className="text-slate-300 text-sm overflow-x-auto font-mono leading-relaxed h-[400px] whitespace-pre-wrap">
+{`<script>\n  window.AGENTVOX_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}\n  };\n</script>\n<script src="${window.location.origin}/embed.js" async></script>`}
                   </pre>
                   <button 
                      onClick={() => {
-                        window.navigator.clipboard.writeText(`<script>
-  window.AGENTVOX_CONFIG = {
-    websiteName: "${saasConfig.websiteName.replace(/"/g, '\\"')}",
-    agentName: "${saasConfig.agentName.replace(/"/g, '\\"')}",
-    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},
-    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}
-  };
-</script>
-<script src="${window.location.origin}/embed.js" async></script>`);
+                        window.navigator.clipboard.writeText(`<script>\n  window.AGENTVOX_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}\n  };\n</script>\n<script src="${window.location.origin}/embed.js" async></script>`);
                         setCopied(true);
                         setTimeout(() => setCopied(false), 2000);
                      }}

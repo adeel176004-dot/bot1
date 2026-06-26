@@ -124,7 +124,7 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
 
   const playAudioChunk = (outputAudioCtx: AudioContext, base64: string) => {
     const pcmMatch = base64ToPcm(base64);
-    const buffer = outputAudioCtx.createBuffer(1, pcmMatch.length, outputAudioCtx.sampleRate);
+    const buffer = outputAudioCtx.createBuffer(1, pcmMatch.length, 24000);
     buffer.getChannelData(0).set(pcmMatch);
     
     const source = outputAudioCtx.createBufferSource();
