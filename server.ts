@@ -213,8 +213,11 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         }
       });
       
-    } catch(e) {
+    } catch(e: any) {
         console.error("Live API Error:", e);
+        if (clientWs.readyState === WebSocket.OPEN) {
+           clientWs.send(JSON.stringify({ type: 'error', message: "Agent is busy or unavailable. Please try again." }));
+        }
     }
   });
 
@@ -457,6 +460,11 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
             ws.onmessage = function(event) {
                 var msg = JSON.parse(event.data);
+                if (msg.type === 'error') {
+                    statusText.innerText = msg.message;
+                    stopRecording();
+                    return;
+                }
                 if (msg.type === 'display_link') {
                     linkBox.style.display = 'block';
                     linkUrl.href = msg.payload.url;
