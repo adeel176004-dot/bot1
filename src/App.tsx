@@ -823,7 +823,8 @@ export default function App() {
         .av-link-box a { color: #2563eb; font-weight: 500; text-decoration: none; word-break: break-all; font-size: 14px; }
         .av-link-box a:hover { text-decoration: underline; }
         .av-link-desc { font-size: 12px; color: #64748b; margin-top: 4px; }
-    \`
+    \`;
+    document.head.appendChild(style);
 
     // HTML
     container.innerHTML = \`

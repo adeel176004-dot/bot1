@@ -10,6 +10,20 @@ import axios from 'axios';
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.removeHeader('X-Frame-Options'); // Allow iframe embedding
+    res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
+
   app.use(express.json());
 
   const server = http.createServer(app);
@@ -202,19 +216,6 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
     } catch(e) {
         console.error("Live API Error:", e);
     }
-  });
-
-  app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.removeHeader('X-Frame-Options'); // Allow iframe embedding
-    res.setHeader('Content-Security-Policy', "frame-ancestors *");
-    if (req.method === 'OPTIONS') {
-      res.sendStatus(200);
-      return;
-    }
-    next();
   });
 
   app.get('/embed.js', (req, res) => {
