@@ -560,11 +560,11 @@ export default function App() {
                
                <div className="bg-slate-900 rounded-xl p-4 relative group">
                   <pre className="text-slate-300 text-sm overflow-x-auto font-mono leading-relaxed h-[400px] whitespace-pre-wrap">
-{`<script>\n  window.AGENTVOX_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}\n  };\n</script>\n<script src="${window.location.origin}/embed.js" async></script>`}
+{`<script>\n  window.AGENTVOX_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}\n  };\n  var script = document.createElement("script");\n  script.src = "${window.location.origin}/embed.js";\n  document.body.appendChild(script);\n</script>`}
                   </pre>
                   <button 
                      onClick={() => {
-                        window.navigator.clipboard.writeText(`<script>\n  window.AGENTVOX_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}\n  };\n</script>\n<script src="${window.location.origin}/embed.js" async></script>`);
+                        window.navigator.clipboard.writeText(`<script>\n  window.AGENTVOX_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}\n  };\n  var script = document.createElement("script");\n  script.src = "${window.location.origin}/embed.js";\n  document.body.appendChild(script);\n</script>`);
                         setCopied(true);
                         setTimeout(() => setCopied(false), 2000);
                      }}
