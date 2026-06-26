@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -11,16 +12,11 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
   
+  app.use(cors({ origin: '*' }));
+  app.options('*', cors({ origin: '*' }));
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.removeHeader('X-Frame-Options'); // Allow iframe embedding
     res.setHeader('Content-Security-Policy', "frame-ancestors *");
-    if (req.method === 'OPTIONS') {
-      res.sendStatus(200);
-      return;
-    }
     next();
   });
 
@@ -52,7 +48,7 @@ ${context}
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
         const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: "gemini-3.1-flash",
             contents: message || "Hello",
             config: {
                 systemInstruction: systemPrompt,
@@ -84,9 +80,9 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         }
 
         res.json({ reply: response.text || "I'm sorry, I didn't catch that." });
-    } catch (e) {
+    } catch (e: any) {
         console.error("Error in /api/chat:", e);
-        res.status(500).json({ error: "Failed to process message." });
+        res.status(500).json({ error: e.message || "Failed to process message." });
     }
   });
 
@@ -437,6 +433,11 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         })
         .then(function(res) { return res.json(); })
         .then(function(data) {
+            if (data.error) {
+                statusText.innerText = 'Error: ' + data.error;
+                speakResponse('Sorry, an error occurred.');
+                return;
+            }
             statusText.innerText = data.reply;
             
             if (data.link) {
