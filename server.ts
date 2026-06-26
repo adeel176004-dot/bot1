@@ -32,6 +32,10 @@ async function startServer() {
   
   app.post('/api/chat', async (req, res) => {
     try {
+        if (!process.env.GEMINI_API_KEY) {
+             console.error("GEMINI_API_KEY is missing");
+             return res.status(500).json({ error: "API key is missing on the server." });
+        }
         const { message, config, context } = req.body;
         const websiteName = config.websiteName || 'Voice Agent';
         const agentName = config.agentName || 'Agent';
@@ -48,8 +52,8 @@ ${context}
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
         const response = await ai.models.generateContent({
-            model: "gemini-3.1-flash",
-            contents: message,
+            model: "gemini-3.5-flash",
+            contents: message || "Hello",
             config: {
                 systemInstruction: systemPrompt,
                 tools: [{
@@ -81,7 +85,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
         res.json({ reply: response.text || "I'm sorry, I didn't catch that." });
     } catch (e) {
-        console.error(e);
+        console.error("Error in /api/chat:", e);
         res.status(500).json({ error: "Failed to process message." });
     }
   });
