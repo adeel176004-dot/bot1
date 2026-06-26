@@ -651,6 +651,7 @@ export default function App() {
     var linkDesc = document.getElementById('av-link-desc');
 
     // TOGGLE INTERFACE
+    var hasGreeted = false;
     fab.onclick = function() {
         if (win.classList.contains('av-open')) {
             win.classList.remove('av-open');
@@ -658,6 +659,11 @@ export default function App() {
         } else {
             win.style.display = 'flex';
             setTimeout(function() { win.classList.add('av-open'); }, 10);
+            if (!hasGreeted) {
+                hasGreeted = true;
+                statusText.innerText = 'Waking up...';
+                sendMessageToBackend("Hello! I am a user starting a voice conversation. Please greet me briefly and ask how you can help me.");
+            }
         }
     };
     closeBtn.onclick = function() {
@@ -866,6 +872,7 @@ export default function App() {
     var linkDesc = document.getElementById('av-link-desc');
 
     // TOGGLE INTERFACE
+    var hasGreeted = false;
     fab.onclick = function() {
         if (win.classList.contains('av-open')) {
             win.classList.remove('av-open');
@@ -873,6 +880,11 @@ export default function App() {
         } else {
             win.style.display = 'flex';
             setTimeout(function() { win.classList.add('av-open'); }, 10);
+            if (!hasGreeted) {
+                hasGreeted = true;
+                statusText.innerText = 'Waking up...';
+                sendMessageToBackend("Hello! I am a user starting a voice conversation. Please greet me briefly and ask how you can help me.");
+            }
         }
     };
     closeBtn.onclick = function() {
