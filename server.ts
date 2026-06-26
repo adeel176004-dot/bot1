@@ -48,7 +48,7 @@ ${context}
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
         const response = await ai.models.generateContent({
-            model: "gemini-3.1-flash",
+            model: "gemini-3.5-flash",
             contents: message || "Hello",
             config: {
                 systemInstruction: systemPrompt,
@@ -358,11 +358,6 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         } else {
             win.style.display = 'flex';
             setTimeout(function() { win.classList.add('av-open'); }, 10);
-            if (!hasGreeted) {
-                hasGreeted = true;
-                statusText.innerText = 'Waking up...';
-                sendMessageToBackend("Hello! I am a user starting a voice conversation. Please greet me briefly and ask how you can help me.");
-            }
         }
     };
     closeBtn.onclick = function() {
