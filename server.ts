@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
 import * as http from 'http';
@@ -106,6 +107,16 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
           try {
               for (const link of websiteLinks) {
                   try {
+                      // Try r.jina.ai first as it cleanly extracts markdown from any modern URL, SPA, TikTok, Cloudflare protected sites, etc.
+                      const jinaUrl = `https://r.jina.ai/${link}`;
+                      const jinaRes = await axios.get(jinaUrl, { timeout: 6000 });
+                      if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
+                          fetchedContext += `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
+                          continue;
+                      }
+                  } catch (e) {}
+
+                  try {
                       const response = await axios.get(link, { 
                           timeout: 5000,
                           headers: {
@@ -125,25 +136,29 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
           }
       }
 
-      let websiteContext = fetchedContext.trim() ? fetchedContext.substring(0, 8000) : clientContext.substring(0, 8000);
+      let websiteContext = fetchedContext.trim();
+      if (!websiteContext && websiteLinks.length === 0 && clientContext.trim()) {
+          websiteContext = clientContext.substring(0, 8000);
+      }
       if (!websiteContext) {
-          websiteContext = "No specific website content available.";
+          websiteContext = `General FAQ and business details for ${websiteName}.${websiteLinks.length > 0 ? ` Official website URLs: ${websiteLinks.join(', ')}.` : ''}`;
       }
 
-      const systemPrompt = `You are an incredibly friendly female receptionist for ${websiteName}. Your name is ${agentName}.
-Your primary goal is to answer user queries accurately based ONLY on the provided website data below.
-If the user asks something outside the scope of the website data, politely inform them that you do not have that information.
-NEVER MENTION that you are an AI, a virtual assistant, a bot, or a superhuman. You are a real human receptionist.
+      const systemPrompt = `You are an incredibly friendly female receptionist representing ${websiteName}. Your name is ${agentName}.
+Your primary goal is to answer user queries accurately based ONLY on the provided Website Data for ${websiteName} below.
+CRITICAL MANDATE: You represent ${websiteName}. Do NOT discuss unrelated websites or products even if stray text appears in your context.
+If the user asks something outside the scope of ${websiteName}, politely inform them that you do not have that information.
+NEVER MENTION that you are an AI, a virtual assistant, a bot, or a superhuman. You are a real human receptionist for ${websiteName}.
 CRITICAL MANDATE: You MUST ONLY speak in English.
 Be extremely conversational, warm, and natural. Use natural human conversational fillers like 'ummm', 'hmmm', 'let me see', and slight pauses to sound like a real person thinking. Keep your statements brief and to the point since it is a voice conversation.
 
-If the user asks about a specific feature, offering, paid plan, pricing, or contact details, you MUST use the \`display_link\` tool to show them the relevant URL. Deduce the URL from the known pages (${websiteLinks.join(', ')}) if necessary. For example, if they ask for contact details, you might pass a contact URL from the known pages.
+If the user asks about a specific feature, offering, paid plan, pricing, or contact details, you MUST use the \`display_link\` tool to show them the relevant URL. Deduce the URL from the known pages (${websiteLinks.join(', ')}) if necessary.
 Once you call the tool, naturally tell the user that you've just put the link on their screen.
 
-Website Data for Context:
+Website Data for Context (${websiteName}):
 ${websiteContext}
 
-${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
+${customInstructions ? `Additional instructions from ${websiteName}: ${customInstructions}` : ''}`;
 
       const session = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -437,11 +452,14 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         }
 
         try {
-            var linksObj = config.websiteLinks || [];
-            var instructionsObj = config.customInstructions || "";
+            var latestCfg = window.AGENTVOX_CONFIG || config || {};
+            var curWebName = latestCfg.websiteName || websiteName || 'Voice Agent';
+            var curAgName = latestCfg.agentName || agentName || 'Agent';
+            var linksObj = latestCfg.websiteLinks || [];
+            var instructionsObj = latestCfg.customInstructions || "";
             var paramsObj = {
-                websiteName: websiteName,
-                agentName: agentName,
+                websiteName: curWebName,
+                agentName: curAgName,
                 customInstructions: instructionsObj
             };
             if (linksObj && linksObj.length > 0) {
