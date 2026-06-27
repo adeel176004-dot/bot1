@@ -100,25 +100,34 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
       } catch (e) {}
       const customInstructions = url.searchParams.get('customInstructions') || '';
 
-      let websiteContext = url.searchParams.get('websiteContext') || '';
-      if (!websiteContext && websiteLinks.length > 0) {
+      let clientContext = url.searchParams.get('websiteContext') || '';
+      let fetchedContext = '';
+      if (websiteLinks.length > 0) {
           try {
-              let scrapedText = '';
               for (const link of websiteLinks) {
                   try {
-                      const response = await axios.get(link, { timeout: 5000 });
+                      const response = await axios.get(link, { 
+                          timeout: 5000,
+                          headers: {
+                              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                          }
+                      });
                       const $ = cheerio.load(response.data);
-                      $('script, style, nav, footer').remove();
-                      scrapedText += `\n--- CONTENT FROM ${link} ---\n` + $('body').text().replace(/\s+/g, ' ').trim() + '\n';
+                      $('script, style, nav, footer, noscript, iframe').remove();
+                      fetchedContext += `\n--- CONTENT FROM ${link} ---\n` + $('body').text().replace(/\s+/g, ' ').trim() + '\n';
                   } catch (e) {
                       console.error(`Failed to fetch ${link}`, e);
                   }
               }
-              websiteContext = scrapedText.substring(0, 8000); // Send up to 8k chars of context
           } catch (e) {
               console.error("Failed to fetch website context", e);
-              websiteContext = "Could not fetch website context at this time.";
           }
+      }
+
+      let websiteContext = fetchedContext.trim() ? fetchedContext.substring(0, 8000) : clientContext.substring(0, 8000);
+      if (!websiteContext) {
+          websiteContext = "No specific website content available.";
       }
 
       const systemPrompt = `You are an incredibly friendly female receptionist for ${websiteName}. Your name is ${agentName}.
@@ -428,11 +437,20 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         }
 
         try {
-            var urlParams = new URLSearchParams({
+            var linksObj = config.websiteLinks || [];
+            var instructionsObj = config.customInstructions || "";
+            var paramsObj = {
                 websiteName: websiteName,
                 agentName: agentName,
-                websiteContext: document.body.innerText.substring(0, 5000)
-            }).toString();
+                customInstructions: instructionsObj
+            };
+            if (linksObj && linksObj.length > 0) {
+                paramsObj.websiteLinks = JSON.stringify(linksObj);
+            }
+            if (document && document.body) {
+                paramsObj.websiteContext = document.body.innerText.substring(0, 5000);
+            }
+            var urlParams = new URLSearchParams(paramsObj).toString();
             
             var wsProtocol = origin.startsWith('https') ? 'wss://' : 'ws://';
             var wsOrigin = origin.replace('http://', '').replace('https://', '');

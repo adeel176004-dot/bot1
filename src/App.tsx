@@ -523,8 +523,10 @@ export default function App() {
                         <!-- AI Agent Embed Script -->
                         <script>
                           window.AGENTVOX_CONFIG = {
-                            websiteName: "${saasConfig.websiteName.replace(/"/g, '\\"')}",
-                            agentName: "${saasConfig.agentName.replace(/"/g, '\\"')}"
+                            websiteName: ${JSON.stringify(saasConfig.websiteName)},
+                            agentName: ${JSON.stringify(saasConfig.agentName)},
+                            websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},
+                            customInstructions: ${JSON.stringify(saasConfig.customInstructions)}
                           };
                         </script>
                         <script src="${window.location.origin}/embed.js" async></script>
