@@ -94,6 +94,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
       const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
       const websiteName = url.searchParams.get('websiteName') || 'Acme Corp';
       const agentName = url.searchParams.get('agentName') || 'agent';
+      console.log(`Connection received for website: ${websiteName}, agent: ${agentName}`);
       const websiteLinksParam = url.searchParams.get('websiteLinks');
       let websiteLinks: string[] = [];
       try {
