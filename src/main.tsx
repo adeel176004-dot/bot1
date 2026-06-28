@@ -8,11 +8,11 @@ let rootElement = document.getElementById('root');
 let shadowContainer: ShadowRoot | null = null;
 
 // If embedded on a third-party site, use the dedicated container with Shadow DOM created by embed.js
-if (window.AGENTVOX_CONFIG) {
-  const hostElement = document.getElementById('agentvox-host');
+if (window.VOICEGPT_CONFIG) {
+  const hostElement = document.getElementById('voicegpt-host');
   if (hostElement && hostElement.shadowRoot) {
     shadowContainer = hostElement.shadowRoot;
-    rootElement = shadowContainer.getElementById('agentvox-root');
+    rootElement = shadowContainer.getElementById('voicegpt-root');
     
     // Inject Tailwind styles into Shadow DOM in dev mode
     // Vite will inject styles to <head>. We need to move/copy them.
@@ -41,7 +41,7 @@ if (window.AGENTVOX_CONFIG) {
   }
 } else if (!rootElement) {
   rootElement = document.createElement('div');
-  rootElement.id = 'agentvox-root';
+  rootElement.id = 'voicegpt-root';
   document.body.appendChild(rootElement);
 }
 

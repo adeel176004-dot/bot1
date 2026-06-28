@@ -101,6 +101,9 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
           if (websiteLinksParam) websiteLinks = JSON.parse(websiteLinksParam);
       } catch (e) {}
       const customInstructions = url.searchParams.get('customInstructions') || '';
+      const voiceGender = url.searchParams.get('voiceGender') || 'female';
+      const language = url.searchParams.get('language') || 'English';
+      const personality = url.searchParams.get('personality') || 'Friendly';
 
       let clientContext = url.searchParams.get('websiteContext') || '';
       let fetchedContext = '';
@@ -145,13 +148,13 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
           websiteContext = `General FAQ and business details for ${websiteName}.${websiteLinks.length > 0 ? ` Official website URLs: ${websiteLinks.join(', ')}.` : ''}`;
       }
 
-      const systemPrompt = `You are an incredibly friendly female receptionist representing ${websiteName}. Your name is ${agentName}.
+      const systemPrompt = `You are an incredibly ${personality.toLowerCase()} ${voiceGender} receptionist representing ${websiteName}. Your name is ${agentName}.
 Your primary goal is to answer user queries accurately based ONLY on the provided Website Data for ${websiteName} below.
 CRITICAL MANDATE: You represent ${websiteName}. Do NOT discuss unrelated websites or products even if stray text appears in your context.
 If the user asks something outside the scope of ${websiteName}, politely inform them that you do not have that information.
 NEVER MENTION that you are an AI, a virtual assistant, a bot, or a superhuman. You are a real human receptionist for ${websiteName}.
-CRITICAL MANDATE: You MUST ONLY speak in English.
-Be extremely conversational, warm, and natural. Use natural human conversational fillers like 'ummm', 'hmmm', 'let me see', and slight pauses to sound like a real person thinking. Keep your statements brief and to the point since it is a voice conversation.
+CRITICAL MANDATE: You MUST ONLY speak in ${language}.
+Your tone should be consistently ${personality.toLowerCase()}. Be conversational and natural. Use natural human conversational fillers like 'ummm', 'hmmm', 'let me see', and slight pauses to sound like a real person thinking. Keep your statements brief and to the point since it is a voice conversation.
 
 If the user asks about a specific feature, offering, paid plan, pricing, or contact details, you MUST use the \`display_link\` tool to show them the relevant URL. Deduce the URL from the known pages (${websiteLinks.join(', ')}) if necessary.
 Once you call the tool, naturally tell the user that you've just put the link on their screen.
@@ -166,7 +169,7 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Aoede' } },
           },
           systemInstruction: {
              parts: [{ text: systemPrompt }]
@@ -273,17 +276,17 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
 
     const js = `
 (function() {
-  function initAgentVox() {
+  function initVoiceGpt() {
     if (!document.body) {
-      setTimeout(initAgentVox, 50);
+      setTimeout(initVoiceGpt, 50);
       return;
     }
     
-    if (document.getElementById('agentvox-vanilla-widget')) return; // Prevent duplicate injection
+    if (document.getElementById('voicegpt-vanilla-widget')) return; // Prevent duplicate injection
     
-    console.log("AgentVox widget initializing...");
+    console.log("VoiceGPT widget initializing...");
     
-    var config = window.AGENTVOX_CONFIG || {};
+    var config = window.VOICEGPT_CONFIG || {};
     var websiteName = config.websiteName || 'Voice Agent';
     var agentName = config.agentName || 'Agent';
     
@@ -302,7 +305,7 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
 
     // INJECT FLOATING ICON (UI)
     var container = document.createElement('div');
-    container.id = 'agentvox-vanilla-widget';
+    container.id = 'voicegpt-vanilla-widget';
     container.style.position = 'fixed';
     container.style.bottom = '24px';
     container.style.right = '24px';
@@ -313,7 +316,7 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
     // CSS
     var style = document.createElement('style');
     style.innerHTML = \`
-        #agentvox-vanilla-widget * { box-sizing: border-box; }
+        #voicegpt-vanilla-widget * { box-sizing: border-box; }
         .av-fab { width: 60px; height: 60px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4); border: none; transition: transform 0.2s; z-index: 999999; position: absolute; bottom: 0; right: 0; }
         .av-fab:hover { transform: scale(1.05); }
         .av-window { position: absolute; bottom: 80px; right: 0; width: 340px; height: 480px; background: white; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); display: none; flex-direction: column; overflow: hidden; border: 1px solid #e5e7eb; transition: opacity 0.3s; opacity: 0; transform: translateY(10px); z-index: 999999; }
@@ -453,15 +456,21 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
         }
 
         try {
-            var latestCfg = window.AGENTVOX_CONFIG || config || {};
+            var latestCfg = window.VOICEGPT_CONFIG || config || {};
             var curWebName = latestCfg.websiteName || websiteName || 'Voice Agent';
             var curAgName = latestCfg.agentName || agentName || 'Agent';
             var linksObj = latestCfg.websiteLinks || [];
             var instructionsObj = latestCfg.customInstructions || "";
+            var genderObj = latestCfg.voiceGender || "female";
+            var languageObj = latestCfg.language || "English";
+            var personalityObj = latestCfg.personality || "Friendly";
             var paramsObj = {
                 websiteName: curWebName,
                 agentName: curAgName,
-                customInstructions: instructionsObj
+                customInstructions: instructionsObj,
+                voiceGender: genderObj,
+                language: languageObj,
+                personality: personalityObj
             };
             if (linksObj && linksObj.length > 0) {
                 paramsObj.websiteLinks = JSON.stringify(linksObj);
@@ -543,10 +552,10 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
   }
   
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    initAgentVox();
+    initVoiceGpt();
   } else {
-    document.addEventListener('DOMContentLoaded', initAgentVox);
-    window.addEventListener('load', initAgentVox); // Fallback
+    document.addEventListener('DOMContentLoaded', initVoiceGpt);
+    window.addEventListener('load', initVoiceGpt); // Fallback
   }
 })();`;
     res.setHeader('Content-Type', 'application/javascript');

@@ -3,14 +3,55 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { pcmToBase64, base64ToPcm } from './lib/audioUtils';
-import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock } from 'lucide-react';
+import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SupportAgent } from './components/SupportAgent';
+import { TOP_100_LANGUAGES } from './data/languages';
+
+interface FAQItemProps {
+  question: string;
+  answer: string;
+  key?: any;
+}
+
+function FAQItem({ question, answer }: FAQItemProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className={`mb-4 transition-all duration-300 rounded-2xl border ${isOpen ? 'border-blue-200 bg-blue-50/30 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-6 py-5 flex items-center justify-between text-left group transition-all"
+      >
+        <span className={`text-lg font-semibold transition-colors duration-300 ${isOpen ? 'text-blue-700' : 'text-slate-900 group-hover:text-blue-600'}`}>
+          {question}
+        </span>
+        <div className={`p-1 rounded-full transition-all duration-500 ${isOpen ? 'rotate-180 bg-blue-100' : 'bg-slate-50 group-hover:bg-blue-50'}`}>
+          <ChevronDown className={`w-5 h-5 transition-colors ${isOpen ? 'text-blue-600' : 'text-slate-400 group-hover:text-blue-500'}`} />
+        </div>
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+          >
+            <div className="px-6 pb-6 text-slate-600 leading-relaxed text-[17px] border-t border-blue-100/50 pt-4">
+              {answer}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export default function App() {
-  if (window.location.pathname === '/widget' || window.AGENTVOX_CONFIG) {
+  if (window.location.pathname === '/widget' || window.VOICEGPT_CONFIG) {
     return (
       <>
         <style>{'body, html { background-color: transparent !important; }'}</style>
@@ -31,7 +72,10 @@ export default function App() {
     websiteName: '',
     agentName: '',
     websiteLinks: [''],
-    customInstructions: ''
+    customInstructions: '',
+    voiceGender: 'female' as 'male' | 'female',
+    language: 'English',
+    personality: 'Friendly'
   });
   
   const wsRef = useRef<WebSocket | null>(null);
@@ -55,7 +99,10 @@ export default function App() {
         websiteName: saasConfig.websiteName || 'Acme Corp',
         agentName: saasConfig.agentName || 'Aoede',
         websiteLinks: JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim() !== '')),
-        customInstructions: saasConfig.customInstructions || ''
+        customInstructions: saasConfig.customInstructions || '',
+        voiceGender: saasConfig.voiceGender,
+        language: saasConfig.language,
+        personality: saasConfig.personality
       }).toString();
       const ws = new WebSocket(`${protocol}//${window.location.host}/live?${urlParams}`);
       wsRef.current = ws;
@@ -153,7 +200,7 @@ export default function App() {
              <div className="max-w-7xl mx-auto w-full px-6 h-16 flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-blue-600">
                    <Bot className="w-6 h-6" />
-                   <span className="font-semibold text-lg tracking-tight text-slate-900">AgentVox</span>
+                   <span className="font-semibold text-lg tracking-tight text-slate-900">VoiceGPT</span>
                 </div>
                 <nav className="hidden md:flex space-x-8 text-sm font-medium text-slate-600">
                    <a href="#" className="hover:text-blue-600 transition-colors">Features</a>
@@ -168,21 +215,21 @@ export default function App() {
              <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-100 blur-[120px] opacity-60 pointer-events-none" />
              <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-100 blur-[100px] opacity-60 pointer-events-none" />
              
-             <div className="max-w-3xl w-full z-10 text-center space-y-8">
-                <div className="inline-flex items-center space-x-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-full text-sm font-medium ring-1 ring-blue-500/20">
+             <div className="max-w-4xl w-full z-10 text-center space-y-8 mt-12 mb-8">
+                <div className="inline-flex items-center space-x-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-full text-sm font-medium ring-1 ring-blue-500/20 mb-4">
                    <Sparkles className="w-4 h-4" />
                    <span>Next-generation voice experience</span>
                 </div>
-                <h1 className="text-5xl md:text-6xl font-semibold tracking-tight text-slate-900 leading-tight">
+                <h1 className="text-5xl md:text-6xl lg:text-[72px] font-semibold tracking-tight text-[#111827] leading-[1.1]">
                    Supercharge your website with Voice AI
                 </h1>
-                <p className="text-xl text-slate-500 max-w-2xl mx-auto">
+                <p className="text-xl md:text-2xl text-slate-500 max-w-3xl mx-auto font-medium">
                    Build, customize, and deploy a superhuman AI voice agent that knows everything about your business in under 60 seconds.
                 </p>
-                <div className="pt-4">
+                <div className="pt-6">
                    <button 
                       onClick={() => setIsCreating(true)}
-                      className="inline-flex items-center space-x-2 bg-blue-600 text-white font-medium px-8 py-4 rounded-full text-lg hover:bg-blue-700 transition-colors hover:shadow-lg hover:-translate-y-0.5 duration-200"
+                      className="inline-flex items-center space-x-2 bg-[#1d4ed8] text-white font-semibold px-8 py-4 rounded-full text-lg hover:bg-blue-800 transition-all hover:shadow-xl hover:-translate-y-1 duration-300"
                    >
                       <span>Create your voice AI agent</span>
                       <ChevronRight className="w-5 h-5" />
@@ -190,89 +237,302 @@ export default function App() {
                 </div>
              </div>
 
+             {/* Before & After Comparison Section */}
+             <div className="max-w-5xl w-full mx-auto mt-24 mb-20 px-4 z-10">
+                <div className="text-center max-w-3xl mx-auto mb-12">
+                   <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900 leading-tight">
+                      Imagine what you could do if you had an <span className="underline decoration-dotted underline-offset-8 decoration-slate-400">expert voice AI answering calls 24/7</span>
+                   </h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-stretch">
+                   {/* Before Card */}
+                   <motion.div 
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                      className="bg-white rounded-2xl p-7 md:p-10 ring-1 ring-slate-200 shadow-sm flex flex-col justify-between hover:-translate-y-2 hover:shadow-xl transition-all duration-300"
+                   >
+                      <div>
+                         <div className="flex items-center space-x-2 text-slate-500 font-medium text-sm mb-6">
+                            <Undo2 className="w-4 h-4 text-slate-400" />
+                            <span>Before</span>
+                         </div>
+                         <h3 className="text-xl md:text-2xl font-semibold text-slate-900 tracking-tight leading-snug mb-8">
+                            Fickle, one-size-fits-all voice bots that do more harm than good
+                         </h3>
+                      </div>
+                      
+                      <ul className="space-y-4 pt-4 border-t border-slate-100">
+                         <li className="flex items-start space-x-3 text-slate-600 text-base">
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 mt-2 shrink-0" />
+                            <span>Generic tools don't answer based on your website data</span>
+                         </li>
+                         <li className="flex items-start space-x-3 text-slate-600 text-base">
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 mt-2 shrink-0" />
+                            <span>Custom systems are finicky and difficult to maintain</span>
+                         </li>
+                         <li className="flex items-start space-x-3 text-slate-600 text-base">
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 mt-2 shrink-0" />
+                            <span>Customer service staff takes 3+ months to train</span>
+                         </li>
+                      </ul>
+                   </motion.div>
+
+                   {/* After Card */}
+                   <motion.div 
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+                      className="bg-blue-600 rounded-2xl p-7 md:p-10 shadow-lg shadow-blue-600/15 flex flex-col justify-between text-left relative overflow-hidden text-white hover:-translate-y-2 hover:shadow-xl transition-all duration-300"
+                   >
+                      <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+                      <div className="relative z-10">
+                         <div className="flex items-center space-x-2 text-blue-100 font-medium text-sm mb-6">
+                            <span>After</span>
+                            <Redo2 className="w-4 h-4 text-blue-200" />
+                          </div>
+                          <h3 className="text-xl md:text-2xl font-semibold text-white tracking-tight leading-snug mb-8">
+                             An automated voice resource that supercharges your support team
+                          </h3>
+                       </div>
+
+                       <ul className="space-y-4 pt-4 border-t border-blue-500/50 relative z-10">
+                          <li className="flex items-start space-x-3 text-blue-50 text-base">
+                             <Check className="w-4 h-4 text-white mt-1.5 shrink-0" strokeWidth={3} />
+                             <span>Provide 24/7/365 quality human-like responses</span>
+                          </li>
+                          <li className="flex items-start space-x-3 text-blue-50 text-base">
+                             <Check className="w-4 h-4 text-white mt-1.5 shrink-0" strokeWidth={3} />
+                             <span>Automate answering the vast majority of calls</span>
+                          </li>
+                          <li className="flex items-start space-x-3 text-blue-50 text-base">
+                             <Check className="w-4 h-4 text-white mt-1.5 shrink-0" strokeWidth={3} />
+                             <span>Make your current support team twice as productive</span>
+                          </li>
+                       </ul>
+                    </motion.div>
+                </div>
+             </div>
+
              {/* Feature Cards Section */}
-             <div className="max-w-7xl w-full mx-auto mt-24 mb-12 z-10">
-                <div className="text-center mb-12">
-                   <h2 className="text-3xl tracking-tight font-medium text-slate-900">Grow your business automatically</h2>
-                   <p className="text-slate-500 mt-2 text-lg">Our AI handles the interactions, allowing you to focus on growth.</p>
+             <div className="max-w-7xl w-full mx-auto mt-32 mb-20 z-10 px-4">
+                <div className="text-center mb-16">
+                   <h2 className="text-4xl font-bold tracking-tight text-[#111827]">Grow your business automatically</h2>
+                   <p className="text-slate-500 mt-4 text-xl font-medium">Our AI handles the interactions, allowing you to focus on growth.</p>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
                    <motion.div
-                      initial={{ opacity: 0, y: 40, scale: 0.9 }} 
-                      whileInView={{ 
-                         opacity: 1, 
-                         y: 0, 
-                         scale: [0.9, 1.04, 1],
-                         boxShadow: ["0px 0px 0px rgba(59,130,246,0)", "0px 0px 0px rgba(59,130,246,0)", "0px 12px 40px -10px rgba(59,130,246,0.15)"]
-                      }} 
+                      initial={{ opacity: 0, y: 30 }} 
+                      whileInView={{ opacity: 1, y: 0 }} 
                       viewport={{ once: true, margin: "-50px" }}
-                      transition={{ delay: 0.1, duration: 0.7, times: [0, 0.6, 1], ease: "easeOut" }}
-                      className="bg-white p-6 rounded-2xl ring-1 ring-slate-200/60 hover:-translate-y-1 hover:shadow-xl transition-transform duration-300"
+                      transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
+                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
                    >
-                      <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4">
-                         <Clock className="w-6 h-6" />
+                      <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
+                         <Clock className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-medium text-slate-900 mb-2">24/7 Availability</h3>
-                      <p className="text-slate-500 text-sm leading-relaxed">Never miss a potential lead. Your voice agent works around the clock, answering queries anytime.</p>
+                      <h3 className="text-xl font-bold text-[#111827] mb-3">24/7 Availability</h3>
+                      <p className="text-slate-500 text-base font-medium leading-relaxed">Never miss a potential lead. Your voice agent works around the clock, answering queries anytime.</p>
                    </motion.div>
 
                    <motion.div
-                      initial={{ opacity: 0, y: 40, scale: 0.9 }} 
-                      whileInView={{ 
-                         opacity: 1, 
-                         y: 0, 
-                         scale: [0.9, 1.04, 1],
-                         boxShadow: ["0px 0px 0px rgba(34,197,94,0)", "0px 0px 0px rgba(34,197,94,0)", "0px 12px 40px -10px rgba(34,197,94,0.15)"]
-                      }} 
+                      initial={{ opacity: 0, y: 30 }} 
+                      whileInView={{ opacity: 1, y: 0 }} 
                       viewport={{ once: true, margin: "-50px" }}
-                      transition={{ delay: 0.2, duration: 0.7, times: [0, 0.6, 1], ease: "easeOut" }}
-                      className="bg-white p-6 rounded-2xl ring-1 ring-slate-200/60 hover:-translate-y-1 hover:shadow-xl transition-transform duration-300"
+                      transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
+                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
                    >
-                      <div className="w-12 h-12 bg-green-50 text-green-600 rounded-xl flex items-center justify-center mb-4">
-                         <TrendingUp className="w-6 h-6" />
+                      <div className="w-14 h-14 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mb-6">
+                         <TrendingUp className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-medium text-slate-900 mb-2">Increased Conversions</h3>
-                      <p className="text-slate-500 text-sm leading-relaxed">Engage users instantly with human-like voice AI. Turn silent visitors into active, engaged customers.</p>
+                      <h3 className="text-xl font-bold text-[#111827] mb-3">Increased Conversions</h3>
+                      <p className="text-slate-500 text-base font-medium leading-relaxed">Engage users instantly with human-like voice AI. Turn silent visitors into active, engaged customers.</p>
                    </motion.div>
 
                    <motion.div
-                      initial={{ opacity: 0, y: 40, scale: 0.9 }} 
-                      whileInView={{ 
-                         opacity: 1, 
-                         y: 0, 
-                         scale: [0.9, 1.04, 1],
-                         boxShadow: ["0px 0px 0px rgba(168,85,247,0)", "0px 0px 0px rgba(168,85,247,0)", "0px 12px 40px -10px rgba(168,85,247,0.15)"]
-                      }} 
+                      initial={{ opacity: 0, y: 30 }} 
+                      whileInView={{ opacity: 1, y: 0 }} 
                       viewport={{ once: true, margin: "-50px" }}
-                      transition={{ delay: 0.3, duration: 0.7, times: [0, 0.6, 1], ease: "easeOut" }}
-                      className="bg-white p-6 rounded-2xl ring-1 ring-slate-200/60 hover:-translate-y-1 hover:shadow-xl transition-transform duration-300"
+                      transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
+                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
                    >
-                      <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center mb-4">
-                         <Globe className="w-6 h-6" />
+                      <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6">
+                         <Globe className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-medium text-slate-900 mb-2">Instant Knowledge</h3>
-                      <p className="text-slate-500 text-sm leading-relaxed">Automatically syncs with your website. Your AI knows every page, pricing plan, and contact detail directly.</p>
+                      <h3 className="text-xl font-bold text-[#111827] mb-3">Instant Knowledge</h3>
+                      <p className="text-slate-500 text-base font-medium leading-relaxed">Automatically syncs with your website. Your AI knows every page, pricing plan, and contact detail directly.</p>
                    </motion.div>
 
                    <motion.div
-                      initial={{ opacity: 0, y: 40, scale: 0.9 }} 
-                      whileInView={{ 
-                         opacity: 1, 
-                         y: 0, 
-                         scale: [0.9, 1.04, 1],
-                         boxShadow: ["0px 0px 0px rgba(249,115,22,0)", "0px 0px 0px rgba(249,115,22,0)", "0px 12px 40px -10px rgba(249,115,22,0.15)"]
-                      }} 
+                      initial={{ opacity: 0, y: 30 }} 
+                      whileInView={{ opacity: 1, y: 0 }} 
                       viewport={{ once: true, margin: "-50px" }}
-                      transition={{ delay: 0.4, duration: 0.7, times: [0, 0.6, 1], ease: "easeOut" }}
-                      className="bg-white p-6 rounded-2xl ring-1 ring-slate-200/60 hover:-translate-y-1 hover:shadow-xl transition-transform duration-300"
+                      transition={{ delay: 0.4, duration: 0.5, ease: "easeOut" }}
+                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
                    >
-                      <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center mb-4">
-                         <Headset className="w-6 h-6" />
+                      <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mb-6">
+                         <Headset className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-medium text-slate-900 mb-2">Reduce Support Load</h3>
-                      <p className="text-slate-500 text-sm leading-relaxed">Free up your human staff. Let AI resolve common repetitive questions so your team can focus on complex tasks.</p>
+                      <h3 className="text-xl font-bold text-[#111827] mb-3">Reduce Support Load</h3>
+                      <p className="text-slate-500 text-base font-medium leading-relaxed">Free up your human staff. Let AI resolve common repetitive questions so your team can focus on complex tasks.</p>
                    </motion.div>
+                </div>
+             </div>
+
+             {/* How it Works Section */}
+             <div className="max-w-6xl w-full mx-auto mb-32 px-4 z-10">
+                <div className="text-center mb-20">
+                   <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900 leading-tight">
+                      You're <span className="text-blue-600">three easy steps</span> away from your own personalized AI voice agent
+                   </h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16">
+                   <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.5, delay: 0.1 }}
+                      className="flex flex-col items-start"
+                   >
+                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg mb-6 shadow-lg shadow-blue-600/20">
+                         1
+                      </div>
+                      <h3 className="text-2xl font-semibold text-slate-900 mb-4 underline decoration-dotted decoration-slate-400 underline-offset-8">
+                         Sync training data
+                      </h3>
+                      <p className="text-slate-500 text-lg leading-relaxed">
+                         Enter your website URL or upload documentation to give your voice agent the instant knowledge it needs to answer any question.
+                      </p>
+                   </motion.div>
+
+                   <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                      className="flex flex-col items-start"
+                   >
+                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg mb-6 shadow-lg shadow-blue-600/20">
+                         2
+                      </div>
+                      <h3 className="text-2xl font-semibold text-slate-900 mb-4 underline decoration-dotted decoration-slate-400 underline-offset-8">
+                         Customize voice
+                      </h3>
+                      <p className="text-slate-500 text-lg leading-relaxed">
+                         Choose from a variety of human-like voices and define exactly how your agent should greet and assist your callers.
+                      </p>
+                   </motion.div>
+
+                   <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.5, delay: 0.3 }}
+                      className="flex flex-col items-start"
+                   >
+                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg mb-6 shadow-lg shadow-blue-600/20">
+                         3
+                      </div>
+                      <h3 className="text-2xl font-semibold text-slate-900 mb-4 underline decoration-dotted decoration-slate-400 underline-offset-8">
+                         Deploy & Go Live
+                      </h3>
+                      <p className="text-slate-500 text-lg leading-relaxed">
+                         Integrate your agent with your phone system or website. Start handling calls 24/7 and improve from every interaction.
+                      </p>
+                   </motion.div>
+                </div>
+             </div>
+
+             {/* Testimonials Section */}
+             <div className="bg-white py-16 mb-24 z-10 relative">
+                <div className="max-w-5xl w-full mx-auto px-6">
+                   <div className="text-center mb-12">
+                      <h3 className="text-blue-600 font-bold tracking-widest text-xs uppercase mb-3">
+                         Customer Testimonials
+                      </h3>
+                      <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">
+                         Don't just take our word for it
+                      </h2>
+                   </div>
+
+                   <div className="max-w-3xl mx-auto">
+                      <motion.div
+                         initial={{ opacity: 0, y: 20 }}
+                         whileInView={{ opacity: 1, y: 0 }}
+                         viewport={{ once: true }}
+                         transition={{ duration: 0.6 }}
+                         className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-10"
+                      >
+                         <div className="flex-shrink-0">
+                            <img 
+                               src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=200" 
+                               alt="Jonathan Chen"
+                               className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover shadow-md border-4 border-white shadow-blue-50"
+                               referrerPolicy="no-referrer"
+                            />
+                         </div>
+                         <div className="flex-1 text-center md:text-left">
+                            <p className="text-lg md:text-xl text-slate-700 leading-relaxed font-medium mb-6 italic">
+                               “The human-like quality of the voice agent is remarkable. It handled our entire Black Friday support surge without a single missed call or escalation error.”
+                            </p>
+                            <div>
+                               <h4 className="text-xl font-bold text-slate-900">Jonathan Chen</h4>
+                               <p className="text-slate-500 text-base">Director of Operations at Nexus Retail</p>
+                            </div>
+                         </div>
+                      </motion.div>
+                   </div>
+                </div>
+             </div>
+
+             {/* FAQ Section */}
+             <div className="max-w-4xl w-full mx-auto mb-32 px-6 z-10 relative">
+                <div className="text-center mb-16">
+                   <h3 className="text-blue-600 font-bold tracking-widest text-xs uppercase mb-3">
+                      Knowledge Base
+                   </h3>
+                   <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 mb-4">
+                      Frequently Asked Questions
+                   </h2>
+                   <p className="text-slate-500 text-lg max-w-2xl mx-auto">
+                      Everything you need to know about integrating our next-generation voice AI into your business.
+                   </p>
+                </div>
+
+                <div className="space-y-2">
+                   {[
+                      {
+                         q: "How long does it take to set up?",
+                         a: "Setting up a basic voice agent takes less than 60 seconds. Simply enter your website URL, choose a voice, and you're ready to go live. Integration into your existing phone system usually takes another 5-10 minutes."
+                      },
+                      {
+                         q: "Can I customize the agent's knowledge?",
+                         a: "Yes! The agent automatically learns from your website content, but you can also provide custom instructions, upload PDFs, or manually edit responses to ensure 100% accuracy."
+                      },
+                      {
+                         q: "Does it support multiple languages?",
+                         a: "Absolutely. Our voice agents are polyglots, supporting over 50+ languages including Spanish, French, German, Mandarin, and many more, with localized accents for each."
+                      },
+                      {
+                         q: "How does human hand-off work?",
+                         a: "If the agent encounters a complex query it can't resolve, it can instantly transfer the call to your live support team via SIP or ring your office number directly."
+                      },
+                      {
+                         q: "Is our data secure and private?",
+                         a: "Security is our top priority. We use industry-standard encryption for all data at rest and in transit, and we are fully SOC2 and GDPR compliant."
+                      },
+                      {
+                         q: "What phone systems do you support?",
+                         a: "We support major cloud phone systems via SIP trunking including RingCentral, Dialpad, and 8x8, and offer a simple web-based embed for direct website calls."
+                      }
+                   ].map((faq, i) => (
+                      <FAQItem key={i} question={faq.q} answer={faq.a} />
+                   ))}
                 </div>
              </div>
           </main>
@@ -281,7 +541,7 @@ export default function App() {
              <div className="max-w-7xl mx-auto w-full px-6 flex flex-col md:flex-row items-center justify-between text-slate-500 text-sm">
                 <div className="flex items-center space-x-2 mb-4 md:mb-0">
                    <Bot className="w-5 h-5 text-slate-400" />
-                   <span>© 2026 AgentVox Inc. All rights reserved.</span>
+                   <span>© 2026 VoiceGPT Inc. All rights reserved.</span>
                 </div>
                 <div className="flex space-x-6">
                    <a href="#" className="hover:text-slate-900 transition-colors">Privacy Policy</a>
@@ -300,7 +560,7 @@ export default function App() {
            <div className="max-w-7xl mx-auto w-full px-6 h-16 flex items-center justify-between">
               <div className="flex items-center space-x-2 text-blue-600">
                  <Bot className="w-6 h-6" />
-                 <span className="font-semibold text-lg tracking-tight text-slate-900">AgentVox</span>
+                 <span className="font-semibold text-lg tracking-tight text-slate-900">VoiceGPT</span>
               </div>
            </div>
         </header>
@@ -374,6 +634,64 @@ export default function App() {
                       + Add another page link
                   </button>
                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Voice Gender</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => setSaasConfig({...saasConfig, voiceGender: 'female'})}
+                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                        saasConfig.voiceGender === 'female' 
+                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
+                        <Bot className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <span className="font-medium">Female</span>
+                    </button>
+                    <button 
+                      onClick={() => setSaasConfig({...saasConfig, voiceGender: 'male'})}
+                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                        saasConfig.voiceGender === 'male' 
+                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-2">
+                        <Bot className="w-6 h-6 text-slate-600" />
+                      </div>
+                      <span className="font-medium">Male</span>
+                    </button>
+                  </div>
+               </div>
+
+               <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Primary Language</label>
+                  <select 
+                    value={saasConfig.language}
+                    onChange={(e) => setSaasConfig({...saasConfig, language: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white text-slate-900"
+                  >
+                    {TOP_100_LANGUAGES.map(lang => (
+                      <option key={lang} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+               </div>
+
+               <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Agent Personality</label>
+                  <select 
+                    value={saasConfig.personality}
+                    onChange={(e) => setSaasConfig({...saasConfig, personality: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white text-slate-900"
+                  >
+                    {['Friendly', 'Professional', 'Concise', 'Enthusiastic', 'Empathetic', 'Witty', 'Direct'].map(tone => (
+                      <option key={tone} value={tone}>{tone}</option>
+                    ))}
+                  </select>
+               </div>
+
                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Custom Instructions (Optional)</label>
                   <textarea 
@@ -408,7 +726,7 @@ export default function App() {
            <div className="max-w-7xl mx-auto w-full px-6 flex flex-col md:flex-row items-center justify-between text-slate-500 text-sm">
               <div className="flex items-center space-x-2 mb-4 md:mb-0">
                  <Bot className="w-5 h-5 text-slate-400" />
-                 <span>© 2026 ClinicVox Inc. All rights reserved.</span>
+                 <span>© 2026 VoiceGPT Inc. All rights reserved.</span>
               </div>
               <div className="flex space-x-6">
                  <a href="#" className="hover:text-slate-900 transition-colors">Privacy Policy</a>
@@ -522,11 +840,14 @@ export default function App() {
                         
                         <!-- AI Agent Embed Script -->
                         <script>
-                          window.AGENTVOX_CONFIG = {
+                          window.VOICEGPT_CONFIG = {
                             websiteName: ${JSON.stringify(saasConfig.websiteName)},
                             agentName: ${JSON.stringify(saasConfig.agentName)},
                             websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},
-                            customInstructions: ${JSON.stringify(saasConfig.customInstructions)}
+                            customInstructions: ${JSON.stringify(saasConfig.customInstructions)},
+                            voiceGender: ${JSON.stringify(saasConfig.voiceGender)},
+                            language: ${JSON.stringify(saasConfig.language)},
+                            personality: ${JSON.stringify(saasConfig.personality)}
                           };
                         </script>
                         <script src="${window.location.origin}/embed.js" async></script>
@@ -548,34 +869,87 @@ export default function App() {
             exit={{ opacity: 0 }} 
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
           >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              exit={{ scale: 0.95, opacity: 0 }} 
-              className="bg-white max-w-lg w-full rounded-3xl p-8 shadow-2xl relative"
-            >
-               <button onClick={() => setShowEmbed(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors">
-                  <X className="w-5 h-5" />
-               </button>
-               <h2 className="text-2xl font-medium tracking-tight text-slate-900 mb-2">Embed your agent</h2>
-               <p className="text-slate-500 mb-6">Drop this script into the <code className="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-sm">&lt;body&gt;</code> of your website to let your customers talk to your voice agent.</p>
-               
-               <div className="bg-slate-900 rounded-xl p-4 relative group">
-                  <pre className="text-slate-300 text-sm overflow-x-auto font-mono leading-relaxed h-[400px] whitespace-pre-wrap">
-{`<script>\n  window.AGENTVOX_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}\n  };\n  var script = document.createElement("script");\n  script.src = "${window.location.origin}/embed.js";\n  document.body.appendChild(script);\n</script>`}
-                  </pre>
-                  <button 
-                     onClick={() => {
-                        window.navigator.clipboard.writeText(`<script>\n  window.AGENTVOX_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)}\n  };\n  var script = document.createElement("script");\n  script.src = "${window.location.origin}/embed.js";\n  document.body.appendChild(script);\n</script>`);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                     }}
-                     className="absolute top-3 right-3 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors"
-                  >
-                     {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                  </button>
-               </div>
-            </motion.div>
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            exit={{ scale: 0.95, opacity: 0 }} 
+            className="bg-white max-w-3xl w-full rounded-3xl p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto"
+          >
+             <button onClick={() => setShowEmbed(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors">
+                <X className="w-5 h-5" />
+             </button>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 mb-2">Embed your agent</h2>
+                  <p className="text-slate-500 mb-6 text-sm">Copy and paste this script into your website to enable the voice agent.</p>
+                  
+                  <div className="bg-slate-900 rounded-xl p-4 relative group mb-4">
+                     <pre className="text-slate-300 text-xs overflow-x-auto font-mono leading-relaxed h-[300px] whitespace-pre-wrap">
+{`<script>\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)}\n  };\n  var script = document.createElement("script");\n  script.src = "${window.location.origin}/embed.js";\n  document.body.appendChild(script);\n</script>`}
+                     </pre>
+                     <button 
+                        onClick={() => {
+                           window.navigator.clipboard.writeText(`<script>\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)}\n  };\n  var script = document.createElement("script");\n  script.src = "${window.location.origin}/embed.js";\n  document.body.appendChild(script);\n</script>`);
+                           setCopied(true);
+                           setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="absolute top-3 right-3 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors"
+                     >
+                        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                     </button>
+                  </div>
+                  <p className="text-xs text-slate-400 italic">
+                    Tip: Place this just before the closing &lt;/body&gt; tag for best performance.
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                  <h3 className="text-lg font-bold text-slate-900 mb-6">How to install</h3>
+                  
+                  <div className="space-y-6">
+                    {[
+                      {
+                        step: 1,
+                        title: "Copy the code",
+                        desc: "Click the copy icon to grab your unique integration script."
+                      },
+                      {
+                        step: 2,
+                        title: "Open your editor",
+                        desc: "Open your website's source code or CMS (WordPress, Webflow, etc)."
+                      },
+                      {
+                        step: 3,
+                        title: "Paste script",
+                        desc: "Paste the script at the very bottom of your HTML, right before the </body> tag."
+                      },
+                      {
+                        step: 4,
+                        title: "Go live",
+                        desc: "Save your changes and refresh your site to see your agent in action!"
+                      }
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex space-x-4">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+                          {item.step}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-slate-900 text-sm">{item.title}</h4>
+                          <p className="text-slate-500 text-xs mt-1 leading-relaxed">{item.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-slate-200">
+                    <p className="text-xs text-slate-500 flex items-center">
+                      <Lock className="w-3 h-3 mr-2" /> Secure, high-performance delivery
+                    </p>
+                  </div>
+                </div>
+             </div>
+          </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

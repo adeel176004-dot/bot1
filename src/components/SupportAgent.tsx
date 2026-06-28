@@ -30,18 +30,18 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
 
   const startRecording = async () => {
     try {
-      const hostUrl = (window as any).AGENTVOX_ORIGIN ? new URL((window as any).AGENTVOX_ORIGIN) : window.location;
+      const hostUrl = (window as any).VOICEGPT_ORIGIN ? new URL((window as any).VOICEGPT_ORIGIN) : window.location;
       const protocol = hostUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       
       let queryParams: string;
       if (mode === "standalone") {
-        if (window.AGENTVOX_CONFIG) {
+        if (window.VOICEGPT_CONFIG) {
            const safeConfig: any = {};
-           for (const key in window.AGENTVOX_CONFIG) {
-              if (typeof window.AGENTVOX_CONFIG[key] === 'object') {
-                  safeConfig[key] = JSON.stringify(window.AGENTVOX_CONFIG[key]);
+           for (const key in window.VOICEGPT_CONFIG) {
+              if (typeof window.VOICEGPT_CONFIG[key] === 'object') {
+                  safeConfig[key] = JSON.stringify(window.VOICEGPT_CONFIG[key]);
               } else {
-                  safeConfig[key] = window.AGENTVOX_CONFIG[key];
+                  safeConfig[key] = window.VOICEGPT_CONFIG[key];
               }
            }
            queryParams = new URLSearchParams(safeConfig).toString();
@@ -158,7 +158,7 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
 
   useEffect(() => {
     if (mode === "standalone") {
-      window.parent.postMessage(isOpen ? 'agentvox:open' : 'agentvox:close', '*');
+      window.parent.postMessage(isOpen ? 'voicegpt:open' : 'voicegpt:close', '*');
     }
   }, [isOpen, mode]);
 

@@ -1,4 +1,4 @@
-export interface AgentVoxConfig {
+export interface VoiceGPTConfig {
   websiteName?: string;
   agentName?: string;
   websiteLinks?: string[];
@@ -7,6 +7,6 @@ export interface AgentVoxConfig {
 
 declare global {
   interface Window {
-    AGENTVOX_CONFIG?: AgentVoxConfig;
+    VOICEGPT_CONFIG?: VoiceGPTConfig;
   }
 }
