@@ -7,10 +7,31 @@ interface SupportAgentProps {
   defaultOpen?: boolean;
   hideAskMe?: boolean;
   mode?: "saas" | "standalone";
+  layout?: "fixed" | "inline";
+  agentName?: string;
+  customInstructions?: string;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "saas" }: SupportAgentProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+export function SupportAgent({ 
+  defaultOpen = false, 
+  hideAskMe = false, 
+  mode = "saas", 
+  layout = "fixed",
+  agentName: propAgentName,
+  customInstructions: propCustomInstructions,
+  isOpen: propIsOpen,
+  onOpenChange
+}: SupportAgentProps) {
+  const [localIsOpen, setLocalIsOpen] = useState(defaultOpen);
+  const isOpen = propIsOpen !== undefined ? propIsOpen : localIsOpen;
+
+  const setIsOpen = (val: boolean) => {
+    if (onOpenChange) onOpenChange(val);
+    setLocalIsOpen(val);
+  };
+
   const [isRecording, setIsRecording] = useState(false);
   const [displayLink, setDisplayLink] = useState<{url: string, description: string} | null>(null);
 
@@ -49,7 +70,7 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
            queryParams = window.location.search.replace('?', '');
         }
       } else {
-        const customInstructions = `
+        const customInstructions = propCustomInstructions || `
           You are the Support Agent for our VoiceAgent Builder SaaS app.
           Our SaaS app lets businesses create custom voice AI agents for their own websites.
           Features of our SaaS app:
@@ -71,7 +92,7 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
 
         queryParams = new URLSearchParams({
           websiteName: 'VoiceAgent Builder',
-          agentName: 'Support Bot',
+          agentName: propAgentName || 'Support Bot',
           websiteLinks: '[]',
           customInstructions: customInstructions
         }).toString();
@@ -168,6 +189,79 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
     };
   }, []);
 
+  const AgentUI = (
+    <div className={`flex flex-col items-center justify-center gap-6 ${layout === 'fixed' ? 'bg-slate-50 min-h-[250px] p-6' : 'w-full'}`}>
+      <div className="relative">
+        {isRecording && (
+            <>
+                <motion.div 
+                    animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute -inset-4 bg-blue-400 rounded-full blur-md opacity-30"
+                />
+                <motion.div 
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.8, 0, 0.8] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}
+                    className="absolute -inset-2 bg-blue-300 rounded-full blur-sm opacity-40"
+                />
+            </>
+        )}
+        <button
+            onClick={toggleRecording}
+            className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl
+                ${isRecording 
+                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white' 
+                    : 'bg-white text-blue-500 ring-4 ring-blue-50'
+                }
+            `}
+        >
+            {isRecording ? <Mic className="w-10 h-10" /> : <MicOff className="w-10 h-10 text-slate-400" />}
+        </button>
+      </div>
+      <div className="text-center">
+          <p className="text-slate-600 font-medium">{isRecording ? "Listening..." : "Tap to start speaking"}</p>
+      </div>
+
+      <AnimatePresence>
+        {displayLink && (
+          <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full bg-white rounded-xl p-4 shadow-sm ring-1 ring-slate-200"
+          >
+              <h3 className="text-sm font-medium text-slate-900 mb-1 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-blue-500" />
+                  <span>Link</span>
+              </h3>
+              <p className="text-slate-500 text-xs mb-3 truncate">{displayLink.description}</p>
+              
+              <div className="flex flex-col gap-2">
+                  <a 
+                      href={displayLink.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="w-full bg-blue-500 text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-600 transition-colors text-center"
+                  >
+                      Open URL
+                  </a>
+                  <button
+                      onClick={() => setDisplayLink(null)}
+                      className="w-full text-slate-500 text-xs hover:bg-slate-100 font-medium py-1.5 rounded-lg transition-colors text-center"
+                  >
+                      Close Link
+                  </button>
+              </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
+  if (layout === 'inline') {
+    return AgentUI;
+  }
+
   return (
     <>
       <AnimatePresence>
@@ -213,75 +307,11 @@ export function SupportAgent({ defaultOpen = false, hideAskMe = false, mode = "s
               </button>
             </div>
 
-            <div className="p-6 flex flex-col items-center justify-center gap-6 bg-slate-50 min-h-[250px]">
-              <div className="relative">
-                {isRecording && (
-                    <>
-                        <motion.div 
-                            animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                            className="absolute -inset-4 bg-blue-400 rounded-full blur-md opacity-30"
-                        />
-                        <motion.div 
-                            animate={{ scale: [1, 1.2, 1], opacity: [0.8, 0, 0.8] }}
-                            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}
-                            className="absolute -inset-2 bg-blue-300 rounded-full blur-sm opacity-40"
-                        />
-                    </>
-                )}
-                <button
-                    onClick={toggleRecording}
-                    className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl
-                        ${isRecording 
-                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white' 
-                            : 'bg-white text-blue-500 ring-4 ring-blue-50'
-                        }
-                    `}
-                >
-                    {isRecording ? <Mic className="w-10 h-10" /> : <MicOff className="w-10 h-10 text-slate-400" />}
-                </button>
-              </div>
-              <div className="text-center">
-                  <p className="text-slate-600 font-medium">{isRecording ? "Listening..." : "Tap to start speaking"}</p>
-              </div>
-
-              <AnimatePresence>
-                {displayLink && (
-                  <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="w-full bg-white rounded-xl p-4 shadow-sm ring-1 ring-slate-200"
-                  >
-                      <h3 className="text-sm font-medium text-slate-900 mb-1 flex items-center gap-1.5">
-                          <Sparkles className="w-4 h-4 text-blue-500" />
-                          <span>Link</span>
-                      </h3>
-                      <p className="text-slate-500 text-xs mb-3 truncate">{displayLink.description}</p>
-                      
-                      <div className="flex flex-col gap-2">
-                          <a 
-                              href={displayLink.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="w-full bg-blue-500 text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-600 transition-colors text-center"
-                          >
-                              Open URL
-                          </a>
-                          <button
-                              onClick={() => setDisplayLink(null)}
-                              className="w-full text-slate-500 text-xs hover:bg-slate-100 font-medium py-1.5 rounded-lg transition-colors text-center"
-                          >
-                              Close Link
-                          </button>
-                      </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {AgentUI}
           </motion.div>
         )}
       </AnimatePresence>
     </>
   );
 }
+

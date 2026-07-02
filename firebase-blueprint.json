@@ -1,0 +1,19 @@
+{
+  "collections": {
+    "users": {
+      "description": "User profiles",
+      "fields": {
+        "email": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    "otps": {
+      "description": "Temporary OTP codes for email verification",
+      "fields": {
+        "email": "string",
+        "code": "string",
+        "expiresAt": "timestamp"
+      }
+    }
+  }
+}

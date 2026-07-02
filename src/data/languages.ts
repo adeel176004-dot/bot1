@@ -8,5 +8,5 @@ export const TOP_100_LANGUAGES = [
   'Sinhala', 'Greek', 'Czech', 'Belarusian', 'Kazakh', 'Zulu', 'Quechua', 'Bulgarian', 'Swedish', 'Afrikaans',
   'Catalan', 'Hebrew', 'Armenian', 'Danish', 'Finnish', 'Slovak', 'Norwegian', 'Georgian', 'Lithuanian', 'Latvian',
   'Estonian', 'Slovenian', 'Icelandic', 'Albanian', 'Macedonian', 'Bosnian', 'Croatian', 'Serbian', 'Welsh', 'Irish',
-  'Scottish Gaelic', 'Maltese', 'Esperanto', 'Kurdish', 'Mongolian', 'Tibetan', 'Lao', 'Burmese', 'Balochi', 'Luxembourgish'
+  'Scottish Gaelic', 'Maltese', 'Esperanto', 'Kurdish', 'Mongolian', 'Tibetan', 'Lao', 'Balochi', 'Luxembourgish'
 ];

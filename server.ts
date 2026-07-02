@@ -8,11 +8,43 @@ import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
 import * as http from 'http';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+
+// Initialize Firebase Admin (moved inside startServer)
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
   
+  // Initialize Firebase Admin
+  if (getApps().length === 0) {
+    console.log('[FIREBASE] Initializing Admin SDK with explicit project ID...');
+    try {
+      initializeApp({
+        projectId: 'gen-lang-client-0676055838'
+      });
+    } catch (err) {
+      console.error('[FIREBASE] Error initializing Firebase app:', err);
+    }
+  }
+
+  const DB_ID = 'ai-studio-voiceagentbuilde-49d60089-d04c-4ee8-a68c-15f8844a9979';
+  let adminDb: FirebaseFirestore.Firestore;
+  
+  // Try initializing with the named database first
+  const firebaseApp = getApps()[0];
+  const namedDb = getFirestore(firebaseApp, DB_ID);
+  
+  // Test named database connection/permissions with a small operation if possible
+  // Since we can't easily "test" without a call, we'll use a safer approach:
+  // We'll wrap the OTP operations in a try-catch that can fallback to default DB if it hits PERMISSION_DENIED
+  adminDb = namedDb;
+  console.log(`[FIREBASE] Defaulting to named database: ${DB_ID}`);
+
+  const adminAuth = getAuth();
+
   app.use(cors({ origin: '*' }));
   app.options('*', cors({ origin: '*' }));
   app.use((req, res, next) => {
@@ -84,6 +116,28 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
     } catch (e: any) {
         console.error("Error in /api/chat:", e);
         res.status(500).json({ error: e.message || "Failed to process message." });
+    }
+  });
+
+  app.post('/api/generate-content', async (req, res) => {
+    try {
+        if (!process.env.GEMINI_API_KEY) {
+             return res.status(500).json({ error: "API key is missing on the server." });
+        }
+        const { prompt, systemInstruction } = req.body;
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt || "Write a short blog post about AI.",
+            config: {
+                systemInstruction: systemInstruction || "You are a professional content writer."
+            }
+        });
+
+        res.json({ content: response.text || "" });
+    } catch (e: any) {
+        console.error("Error in /api/generate-content:", e);
+        res.status(500).json({ error: e.message || "Failed to generate content." });
     }
   });
 

@@ -5,50 +5,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { pcmToBase64, base64ToPcm } from './lib/audioUtils';
-import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown } from 'lucide-react';
+import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown, Layout, ShieldCheck, CheckCircle2, Search, Zap, Loader2, Type, ListFilter, SortAsc, RefreshCcw, Timer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SupportAgent } from './components/SupportAgent';
 import { TOP_100_LANGUAGES } from './data/languages';
-
-interface FAQItemProps {
-  question: string;
-  answer: string;
-  key?: any;
-}
-
-function FAQItem({ question, answer }: FAQItemProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className={`mb-4 transition-all duration-300 rounded-2xl border ${isOpen ? 'border-blue-200 bg-blue-50/30 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-6 py-5 flex items-center justify-between text-left group transition-all"
-      >
-        <span className={`text-lg font-semibold transition-colors duration-300 ${isOpen ? 'text-blue-700' : 'text-slate-900 group-hover:text-blue-600'}`}>
-          {question}
-        </span>
-        <div className={`p-1 rounded-full transition-all duration-500 ${isOpen ? 'rotate-180 bg-blue-100' : 'bg-slate-50 group-hover:bg-blue-50'}`}>
-          <ChevronDown className={`w-5 h-5 transition-colors ${isOpen ? 'text-blue-600' : 'text-slate-400 group-hover:text-blue-500'}`} />
-        </div>
-      </button>
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
-          >
-            <div className="px-6 pb-6 text-slate-600 leading-relaxed text-[17px] border-t border-blue-100/50 pt-4">
-              {answer}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+import { SEOAnalyzer, SpeedTester, SitemapGenerator, URLExtractor, FAQGenerator, BusinessNameGenerator, PrivacyPolicyGenerator, TermsGenerator, RobotsGenerator, DomainGenerator, WordCounter, ReadingTimeCalculator, CaseConverter, RemoveDuplicateLines, TextSorter, TextReverser, BlogWriter, ArticleWriter, ParagraphGenerator, EssayWriter, VoiceAIUpsell, VoiceAIPopup } from './components/GrowthTools';
+import { OneMinuteChallenge } from './components/OneMinuteChallenge';
+import { FAQItem, COMMON_FAQS } from './components/FAQ';
+import { TestimonialSlider } from './components/TestimonialSlider';
+import { supabase } from './lib/supabase';
+import { User } from '@supabase/supabase-js';
+import { AuthModal } from './components/AuthModal';
 
 export default function App() {
   if (window.location.pathname === '/widget' || window.VOICEGPT_CONFIG) {
@@ -63,9 +30,16 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
 
   const [appMode, setAppMode] = useState<'saas' | 'agent'>('saas');
+  const [currentView, setCurrentView] = useState<'landing' | 'tools'>('landing');
+  const [activeTool, setActiveTool] = useState<'seo' | 'speed' | 'sitemap' | 'url-extractor' | 'faq-gen' | 'name-gen' | 'privacy-gen' | 'terms-gen' | 'robots-gen' | 'domain-gen' | 'word-counter' | 'reading-time' | 'case-converter' | 'remove-duplicates' | 'text-sorter' | 'text-reverser' | 'blog-writer' | 'article-writer' | 'paragraph-gen' | 'essay-writer' | null>(null);
+  const [activeCategory, setActiveCategory] = useState<'All' | 'Optimization' | 'Documentation' | 'Generative'>('All');
   const [isCreating, setIsCreating] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
-  const [showSimulator, setShowSimulator] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [copied, setCopied] = useState(false);
   const [displayLink, setDisplayLink] = useState<{url: string, description: string} | null>(null);
   const [saasConfig, setSaasConfig] = useState({
@@ -187,27 +161,426 @@ export default function App() {
   };
   
   useEffect(() => {
+    // Handle auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
     return () => {
        stopRecording();
+       subscription.unsubscribe();
     };
   }, []);
 
   if (appMode === 'saas') {
+    if (currentView === 'tools') {
+      const handleCTA = () => {
+        setIsCreating(true);
+        setCurrentView('landing');
+        setActiveTool(null);
+      };
+
+      const renderToolContent = () => {
+        if (activeTool === 'seo') {
+          return <SEOAnalyzer onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'speed') {
+          return <SpeedTester onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'sitemap') {
+          return <SitemapGenerator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'url-extractor') {
+          return <URLExtractor onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'faq-gen') {
+          return <FAQGenerator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'name-gen') {
+          return <BusinessNameGenerator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'privacy-gen') {
+          return <PrivacyPolicyGenerator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'terms-gen') {
+          return <TermsGenerator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'robots-gen') {
+          return <RobotsGenerator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'domain-gen') {
+          return <DomainGenerator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'word-counter') {
+          return <WordCounter onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'reading-time') {
+          return <ReadingTimeCalculator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'case-converter') {
+          return <CaseConverter onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'remove-duplicates') {
+          return <RemoveDuplicateLines onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'text-sorter') {
+          return <TextSorter onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'text-reverser') {
+          return <TextReverser onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'blog-writer') {
+          return <BlogWriter onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'article-writer') {
+          return <ArticleWriter onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'paragraph-gen') {
+          return <ParagraphGenerator onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'essay-writer') {
+          return <EssayWriter onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+
+        return (
+          <div className="max-w-6xl mx-auto w-full px-6 py-20">
+             <div className="max-w-3xl mb-16">
+                <button 
+                  onClick={() => setCurrentView('landing')}
+                  className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform"
+                >
+                  <Undo2 className="w-4 h-4 mr-2" /> Back to Home
+                </button>
+                <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-slate-900 mb-6">
+                   Free Growth Tools
+                </h1>
+                <p className="text-slate-500 text-xl leading-relaxed">
+                   Optimize your online presence and scale your customer interactions with our collection of free performance tools.
+                </p>
+             </div>
+
+             <div className="flex flex-wrap justify-center gap-3 mb-12">
+                {['All', 'Optimization', 'Documentation', 'Generative'].map((cat) => (
+                   <button
+                      key={cat}
+                      onClick={() => setActiveCategory(cat as any)}
+                      className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
+                         activeCategory === cat 
+                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                         : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-blue-300 hover:text-blue-600'
+                      }`}
+                   >
+                      {cat}
+                   </button>
+                ))}
+             </div>
+
+             <div className="flex flex-wrap justify-center gap-6">
+                {[
+                   {
+                      id: 'seo',
+                      category: 'Optimization',
+                      title: "SEO Analyzer",
+                      desc: "Complete audit of your website's search engine optimization. Get actionable insights to rank higher.",
+                      icon: <TrendingUp className="w-6 h-6 text-blue-600" />,
+                      color: "bg-blue-50"
+                   },
+                   {
+                      id: 'speed',
+                      category: 'Optimization',
+                      title: "Website Speed Tester",
+                      desc: "Measure your site's load time and performance scores across desktop and mobile devices.",
+                      icon: <Clock className="w-6 h-6 text-teal-600" />,
+                      color: "bg-teal-50"
+                   },
+                   {
+                      id: 'sitemap',
+                      category: 'Documentation',
+                      title: "Sitemap Generator",
+                      desc: "Automatically crawl your website and generate a production-ready XML sitemap in seconds.",
+                      icon: <Globe className="w-6 h-6 text-indigo-600" />,
+                      color: "bg-indigo-50"
+                   },
+                   {
+                      id: 'url-extractor',
+                      category: 'Generative',
+                      title: "Website URL Extractor",
+                      desc: "Crawl and extract all URLs from any website. Perfect for site mapping and content auditing.",
+                      icon: <Layout className="w-6 h-6 text-purple-600" />,
+                      color: "bg-purple-50"
+                   },
+                   {
+                      id: 'faq-gen',
+                      category: 'Generative',
+                      title: "FAQ Generator",
+                      desc: "Generate professional FAQs for your business in seconds based on your services.",
+                      icon: <Sparkles className="w-6 h-6 text-amber-600" />,
+                      color: "bg-amber-50"
+                   },
+                   {
+                      id: 'name-gen',
+                      category: 'Generative',
+                      title: "Business Name Generator",
+                      desc: "Find the perfect name for your next venture with AI-powered brand suggestions.",
+                      icon: <Bot className="w-6 h-6 text-rose-600" />,
+                      color: "bg-rose-50"
+                   },
+                   {
+                      id: 'privacy-gen',
+                      category: 'Documentation',
+                      title: "Privacy Policy Generator",
+                      desc: "Create a customized privacy policy for your website to stay compliant with regulations.",
+                      icon: <ShieldCheck className="w-6 h-6 text-emerald-600" />,
+                      color: "bg-emerald-50"
+                   },
+                   {
+                      id: 'terms-gen',
+                      category: 'Documentation',
+                      title: "Terms & Conditions Generator",
+                      desc: "Professional terms of service documents tailored to your specific business model.",
+                      icon: <CheckCircle2 className="w-6 h-6 text-slate-600" />,
+                      color: "bg-slate-50"
+                   },
+                   {
+                      id: 'robots-gen',
+                      category: 'Optimization',
+                      title: "Robots.txt Generator",
+                      desc: "Generate optimized robots.txt files to guide search engine crawlers correctly.",
+                      icon: <Code className="w-6 h-6 text-cyan-600" />,
+                      color: "bg-cyan-50"
+                   },
+                   {
+                      id: 'domain-gen',
+                      category: 'Generative',
+                      title: "Domain Name Generator",
+                      desc: "Find the perfect domain for your business with instant availability suggestions.",
+                      icon: <Search className="w-6 h-6 text-blue-600" />,
+                      color: "bg-blue-50"
+                   },
+                   {
+                      id: 'word-counter',
+                      category: 'Optimization',
+                      title: "Word Counter",
+                      desc: "Analyze your content with real-time word, character, and reading time statistics.",
+                      icon: <Zap className="w-6 h-6 text-emerald-600" />,
+                      color: "bg-emerald-50"
+                   },
+                   {
+                      id: 'reading-time',
+                      category: 'Optimization',
+                      title: "Reading Time Calculator",
+                      desc: "Accurately estimate how long it will take to read your content at different speeds.",
+                      icon: <Timer className="w-6 h-6 text-blue-600" />,
+                      color: "bg-blue-50"
+                   },
+                   {
+                      id: 'case-converter',
+                      category: 'Optimization',
+                      title: "Case Converter",
+                      desc: "Instantly switch between UPPERCASE, lowercase, Title Case, and more.",
+                      icon: <Type className="w-6 h-6 text-purple-600" />,
+                      color: "bg-purple-50"
+                   },
+                   {
+                      id: 'remove-duplicates',
+                      category: 'Optimization',
+                      title: "Remove Duplicate Lines",
+                      desc: "Clean up your lists and data by instantly removing repeating lines or entries.",
+                      icon: <ListFilter className="w-6 h-6 text-rose-600" />,
+                      color: "bg-rose-50"
+                   },
+                   {
+                      id: 'text-sorter',
+                      category: 'Optimization',
+                      title: "Text Sorter",
+                      desc: "Alphabetize or sort your text lines in ascending or descending order instantly.",
+                      icon: <SortAsc className="w-6 h-6 text-amber-600" />,
+                      color: "bg-amber-50"
+                   },
+                   {
+                      id: 'text-reverser',
+                      category: 'Optimization',
+                      title: "Text Reverser",
+                      desc: "Flip your text backwards or reverse the order of lines in your content.",
+                      icon: <RefreshCcw className="w-6 h-6 text-indigo-600" />,
+                      color: "bg-indigo-50"
+                   },
+                   {
+                      id: 'blog-writer',
+                      category: 'Generative',
+                      title: "AI Blog Writer",
+                      desc: "Generate high-quality, SEO-friendly blog posts based on your topic and keywords.",
+                      icon: <Sparkles className="w-6 h-6 text-blue-600" />,
+                      color: "bg-blue-50"
+                   },
+                   {
+                      id: 'article-writer',
+                      category: 'Generative',
+                      title: "AI Article Writer",
+                      desc: "Create long-form articles with structured headings and professional tone.",
+                      icon: <Bot className="w-6 h-6 text-indigo-600" />,
+                      color: "bg-indigo-50"
+                   },
+                   {
+                      id: 'paragraph-gen',
+                      category: 'Generative',
+                      title: "AI Paragraph Generator",
+                      desc: "Expand your ideas into well-structured, coherent paragraphs instantly.",
+                      icon: <Zap className="w-6 h-6 text-amber-600" />,
+                      color: "bg-amber-50"
+                   },
+                   {
+                      id: 'essay-writer',
+                      category: 'Generative',
+                      title: "AI Essay Writer",
+                      desc: "Write academic or informative essays with proper introduction, body, and conclusion.",
+                      icon: <Code className="w-6 h-6 text-rose-600" />,
+                      color: "bg-rose-50"
+                   }
+                ]
+                 .filter(t => activeCategory === 'All' || (t as any).category === activeCategory)
+                 .map((tool, i) => (
+                   <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="bg-white p-6 rounded-[32px] ring-1 ring-slate-200 shadow-sm hover:shadow-xl hover:ring-blue-100 transition-all group flex flex-col items-start w-full md:w-[calc(50%-12px)] lg:w-[calc(33.33%-16px)] xl:w-[calc(25%-18px)]"
+                   >
+                      <div className={`w-14 h-14 ${tool.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                         {tool.icon}
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-900 mb-2">{tool.title}</h3>
+                      <p className="text-slate-500 text-base leading-relaxed mb-4">
+                         {tool.desc}
+                      </p>
+                      <button 
+                        onClick={() => setActiveTool(tool.id as any)}
+                        className="mt-auto flex items-center text-blue-600 font-bold hover:translate-x-1 transition-transform"
+                      >
+                         Use Tool <ChevronRight className="w-5 h-5 ml-1" />
+                      </button>
+                   </motion.div>
+                ))}
+             </div>
+             <VoiceAIPopup onCTA={handleCTA} />
+          </div>
+        );
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+          <header className="border-b border-slate-200/60 bg-white/50 backdrop-blur-md sticky top-0 z-50">
+             <div className="max-w-7xl mx-auto w-full px-6 h-16 flex items-center justify-between">
+                <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className="flex items-center space-x-2 text-blue-600 hover:opacity-80 transition-opacity">
+                   <Bot className="w-6 h-6" />
+                   <span className="font-semibold text-lg tracking-tight text-slate-900">VoiceGPT</span>
+                </button>
+                <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-600">
+                   <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className="hover:text-blue-600 transition-colors">Home</button>
+                   <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className="hover:text-blue-600 transition-colors">Features</button>
+                   <button 
+                      onClick={() => {setCurrentView('tools'); setActiveTool(null);}}
+                      className="text-blue-600 font-bold"
+                   >
+                      Free Tools
+                   </button>
+                   <a href="#" className="hover:text-blue-600 transition-colors">Pricing</a>
+                   <a href="#" className="hover:text-blue-600 transition-colors">Contact</a>
+                </nav>
+                <button 
+                   onClick={() => setIsCreating(true)}
+                   className="bg-blue-600 text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+                >
+                   Create Agent
+                </button>
+                <div className="flex items-center space-x-4">
+                  {user ? (
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm font-medium text-slate-600 hidden lg:inline-block">
+                        {user.email}
+                      </span>
+                      <button 
+                        onClick={() => supabase.auth.signOut()}
+                        className="text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 px-4 py-2 rounded-full transition-colors"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setShowAuth(true)}
+                      className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
+                    >
+                      Sign Up
+                    </button>
+                  )}
+                </div>
+             </div>
+          </header>
+
+          <main className="flex-1">
+             {renderToolContent()}
+          </main>
+
+          <footer className="border-t border-slate-200/60 bg-white py-8">
+             <div className="max-w-7xl mx-auto w-full px-6 flex flex-col md:flex-row items-center justify-between text-slate-500 text-sm">
+                <div className="flex items-center space-x-2">
+                   <Bot className="w-5 h-5 text-slate-400" />
+                   <span>© 2026 VoiceGPT Inc. All rights reserved.</span>
+                </div>
+             </div>
+          </footer>
+          <SupportAgent />
+          <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
+        </div>
+      );
+    }
+
     if (!isCreating) {
       return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
           <header className="border-b border-slate-200/60 bg-white/50 backdrop-blur-md sticky top-0 z-50">
              <div className="max-w-7xl mx-auto w-full px-6 h-16 flex items-center justify-between">
-                <div className="flex items-center space-x-2 text-blue-600">
+                <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className="flex items-center space-x-2 text-blue-600 hover:opacity-80 transition-opacity">
                    <Bot className="w-6 h-6" />
                    <span className="font-semibold text-lg tracking-tight text-slate-900">VoiceGPT</span>
-                </div>
-                <nav className="hidden md:flex space-x-8 text-sm font-medium text-slate-600">
-                   <a href="#" className="hover:text-blue-600 transition-colors">Features</a>
+                </button>
+                <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-600">
+                   <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className={`hover:text-blue-600 transition-colors ${currentView === 'landing' ? 'text-blue-600' : ''}`}>Home</button>
+                   <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className={`hover:text-blue-600 transition-colors ${currentView === 'landing' ? 'text-blue-600' : ''}`}>Features</button>
+                   <button 
+                      onClick={() => {setCurrentView('tools'); setActiveTool(null);}}
+                      className={`hover:text-blue-600 transition-colors ${currentView === 'tools' ? 'text-blue-600' : ''}`}
+                   >
+                      Free Tools
+                   </button>
                    <a href="#" className="hover:text-blue-600 transition-colors">Pricing</a>
                    <a href="#" className="hover:text-blue-600 transition-colors">Contact</a>
                 </nav>
-                <button className="text-sm font-medium text-slate-600 hover:text-slate-900">Sign In</button>
+                <div className="flex items-center space-x-4">
+                  {user ? (
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm font-medium text-slate-600 hidden lg:inline-block">
+                        {user.email}
+                      </span>
+                      <button 
+                        onClick={() => supabase.auth.signOut()}
+                        className="text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 px-4 py-2 rounded-full transition-colors"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setShowAuth(true)}
+                      className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
+                    >
+                      Sign Up
+                    </button>
+                  )}
+                </div>
              </div>
           </header>
           
@@ -226,14 +599,87 @@ export default function App() {
                 <p className="text-xl md:text-2xl text-slate-500 max-w-3xl mx-auto font-medium">
                    Build, customize, and deploy a superhuman AI voice agent that knows everything about your business in under 60 seconds.
                 </p>
-                <div className="pt-6">
+                <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
                    <button 
                       onClick={() => setIsCreating(true)}
-                      className="inline-flex items-center space-x-2 bg-[#1d4ed8] text-white font-semibold px-8 py-4 rounded-full text-lg hover:bg-blue-800 transition-all hover:shadow-xl hover:-translate-y-1 duration-300"
+                      className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-[#1d4ed8] text-white font-semibold px-8 py-4 rounded-full text-lg hover:bg-blue-800 transition-all hover:shadow-xl hover:-translate-y-1 duration-300"
                    >
                       <span>Create your voice AI agent</span>
                       <ChevronRight className="w-5 h-5" />
                    </button>
+                   <button 
+                      onClick={() => setShowDemo(true)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-white text-slate-900 font-semibold px-8 py-4 rounded-full text-lg ring-1 ring-slate-200 hover:bg-slate-50 transition-all hover:shadow-lg hover:-translate-y-1 duration-300"
+                   >
+                      <span>See Demo</span>
+                   </button>
+                </div>
+             </div>
+
+
+             {/* Feature Cards Section */}
+             <div className="max-w-7xl w-full mx-auto mt-32 mb-20 z-10 px-4">
+                <div className="text-center mb-16">
+                   <h2 className="text-4xl font-bold tracking-tight text-[#111827]">Grow your business automatically</h2>
+                   <p className="text-slate-500 mt-4 text-xl font-medium">Our AI handles the interactions, allowing you to focus on growth.</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+                   <motion.div
+                      initial={{ opacity: 0, y: 30 }} 
+                      whileInView={{ opacity: 1, y: 0 }} 
+                      viewport={{ once: true, margin: "-50px" }}
+                      transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
+                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
+                   >
+                      <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
+                         <Clock className="w-7 h-7" />
+                      </div>
+                      <h3 className="text-xl font-bold text-[#111827] mb-3">24/7 Availability</h3>
+                      <p className="text-slate-500 text-base font-medium leading-relaxed">Never miss a potential lead. Your voice agent works around the clock, answering queries anytime.</p>
+                   </motion.div>
+
+                   <motion.div
+                      initial={{ opacity: 0, y: 30 }} 
+                      whileInView={{ opacity: 1, y: 0 }} 
+                      viewport={{ once: true, margin: "-50px" }}
+                      transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
+                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
+                   >
+                      <div className="w-14 h-14 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mb-6">
+                         <TrendingUp className="w-7 h-7" />
+                      </div>
+                      <h3 className="text-xl font-bold text-[#111827] mb-3">Increased Conversions</h3>
+                      <p className="text-slate-500 text-base font-medium leading-relaxed">Engage users instantly with human-like voice AI. Turn silent visitors into active, engaged customers.</p>
+                   </motion.div>
+
+                   <motion.div
+                      initial={{ opacity: 0, y: 30 }} 
+                      whileInView={{ opacity: 1, y: 0 }} 
+                      viewport={{ once: true, margin: "-50px" }}
+                      transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
+                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
+                   >
+                      <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6">
+                         <Globe className="w-7 h-7" />
+                      </div>
+                      <h3 className="text-xl font-bold text-[#111827] mb-3">Instant Knowledge</h3>
+                      <p className="text-slate-500 text-base font-medium leading-relaxed">Automatically syncs with your website. Your AI knows every page, pricing plan, and contact detail directly.</p>
+                   </motion.div>
+
+                   <motion.div
+                      initial={{ opacity: 0, y: 30 }} 
+                      whileInView={{ opacity: 1, y: 0 }} 
+                      viewport={{ once: true, margin: "-50px" }}
+                      transition={{ delay: 0.4, duration: 0.5, ease: "easeOut" }}
+                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
+                   >
+                      <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mb-6">
+                         <Headset className="w-7 h-7" />
+                      </div>
+                      <h3 className="text-xl font-bold text-[#111827] mb-3">Reduce Support Load</h3>
+                      <p className="text-slate-500 text-base font-medium leading-relaxed">Free up your human staff. Let AI resolve common repetitive questions so your team can focus on complex tasks.</p>
+                   </motion.div>
                 </div>
              </div>
 
@@ -317,71 +763,6 @@ export default function App() {
                 </div>
              </div>
 
-             {/* Feature Cards Section */}
-             <div className="max-w-7xl w-full mx-auto mt-32 mb-20 z-10 px-4">
-                <div className="text-center mb-16">
-                   <h2 className="text-4xl font-bold tracking-tight text-[#111827]">Grow your business automatically</h2>
-                   <p className="text-slate-500 mt-4 text-xl font-medium">Our AI handles the interactions, allowing you to focus on growth.</p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
-                   <motion.div
-                      initial={{ opacity: 0, y: 30 }} 
-                      whileInView={{ opacity: 1, y: 0 }} 
-                      viewport={{ once: true, margin: "-50px" }}
-                      transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
-                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
-                   >
-                      <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
-                         <Clock className="w-7 h-7" />
-                      </div>
-                      <h3 className="text-xl font-bold text-[#111827] mb-3">24/7 Availability</h3>
-                      <p className="text-slate-500 text-base font-medium leading-relaxed">Never miss a potential lead. Your voice agent works around the clock, answering queries anytime.</p>
-                   </motion.div>
-
-                   <motion.div
-                      initial={{ opacity: 0, y: 30 }} 
-                      whileInView={{ opacity: 1, y: 0 }} 
-                      viewport={{ once: true, margin: "-50px" }}
-                      transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
-                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
-                   >
-                      <div className="w-14 h-14 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mb-6">
-                         <TrendingUp className="w-7 h-7" />
-                      </div>
-                      <h3 className="text-xl font-bold text-[#111827] mb-3">Increased Conversions</h3>
-                      <p className="text-slate-500 text-base font-medium leading-relaxed">Engage users instantly with human-like voice AI. Turn silent visitors into active, engaged customers.</p>
-                   </motion.div>
-
-                   <motion.div
-                      initial={{ opacity: 0, y: 30 }} 
-                      whileInView={{ opacity: 1, y: 0 }} 
-                      viewport={{ once: true, margin: "-50px" }}
-                      transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
-                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
-                   >
-                      <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6">
-                         <Globe className="w-7 h-7" />
-                      </div>
-                      <h3 className="text-xl font-bold text-[#111827] mb-3">Instant Knowledge</h3>
-                      <p className="text-slate-500 text-base font-medium leading-relaxed">Automatically syncs with your website. Your AI knows every page, pricing plan, and contact detail directly.</p>
-                   </motion.div>
-
-                   <motion.div
-                      initial={{ opacity: 0, y: 30 }} 
-                      whileInView={{ opacity: 1, y: 0 }} 
-                      viewport={{ once: true, margin: "-50px" }}
-                      transition={{ delay: 0.4, duration: 0.5, ease: "easeOut" }}
-                      className="bg-white p-8 rounded-3xl ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all duration-300"
-                   >
-                      <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mb-6">
-                         <Headset className="w-7 h-7" />
-                      </div>
-                      <h3 className="text-xl font-bold text-[#111827] mb-3">Reduce Support Load</h3>
-                      <p className="text-slate-500 text-base font-medium leading-relaxed">Free up your human staff. Let AI resolve common repetitive questions so your team can focus on complex tasks.</p>
-                   </motion.div>
-                </div>
-             </div>
 
              {/* How it Works Section */}
              <div className="max-w-6xl w-full mx-auto mb-32 px-4 z-10">
@@ -460,32 +841,8 @@ export default function App() {
                       </h2>
                    </div>
 
-                   <div className="max-w-3xl mx-auto">
-                      <motion.div
-                         initial={{ opacity: 0, y: 20 }}
-                         whileInView={{ opacity: 1, y: 0 }}
-                         viewport={{ once: true }}
-                         transition={{ duration: 0.6 }}
-                         className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-10"
-                      >
-                         <div className="flex-shrink-0">
-                            <img 
-                               src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=200" 
-                               alt="Jonathan Chen"
-                               className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover shadow-md border-4 border-white shadow-blue-50"
-                               referrerPolicy="no-referrer"
-                            />
-                         </div>
-                         <div className="flex-1 text-center md:text-left">
-                            <p className="text-lg md:text-xl text-slate-700 leading-relaxed font-medium mb-6 italic">
-                               “The human-like quality of the voice agent is remarkable. It handled our entire Black Friday support surge without a single missed call or escalation error.”
-                            </p>
-                            <div>
-                               <h4 className="text-xl font-bold text-slate-900">Jonathan Chen</h4>
-                               <p className="text-slate-500 text-base">Director of Operations at Nexus Retail</p>
-                            </div>
-                         </div>
-                      </motion.div>
+                   <div className="max-w-5xl mx-auto">
+                      <TestimonialSlider />
                    </div>
                 </div>
              </div>
@@ -549,7 +906,8 @@ export default function App() {
                 </div>
              </div>
           </footer>
-          <SupportAgent />
+          <SupportAgent isOpen={showDemo} onOpenChange={setShowDemo} />
+          <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
         </div>
       );
     }
@@ -562,6 +920,28 @@ export default function App() {
                  <Bot className="w-6 h-6" />
                  <span className="font-semibold text-lg tracking-tight text-slate-900">VoiceGPT</span>
               </div>
+              <div className="flex items-center space-x-4">
+                  {user ? (
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm font-medium text-slate-600 hidden lg:inline-block">
+                        {user.email}
+                      </span>
+                      <button 
+                        onClick={() => supabase.auth.signOut()}
+                        className="text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 px-4 py-2 rounded-full transition-colors"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setShowAuth(true)}
+                      className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
+                    >
+                      Sign Up
+                    </button>
+                  )}
+                </div>
            </div>
         </header>
 
@@ -751,115 +1131,11 @@ export default function App() {
       </div>
 
       <div className="absolute top-6 right-6 z-20 flex space-x-3">
-         <button onClick={() => setShowSimulator(true)} className="text-sm font-medium text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 shadow-sm ring-1 ring-slate-900/5">
-            <MonitorPlay className="w-4 h-4 text-slate-500" />
-            <span>Test Simulator</span>
-         </button>
          <button onClick={() => setShowEmbed(true)} className="text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
             <Code className="w-4 h-4" />
             <span>Embed on your website</span>
          </button>
       </div>
-
-      <AnimatePresence>
-        {showSimulator && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-slate-900/60 backdrop-blur-sm"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }} 
-              animate={{ scale: 1, opacity: 1, y: 0 }} 
-              exit={{ scale: 0.95, opacity: 0, y: 20 }} 
-              className="bg-slate-50 w-full max-w-5xl h-[85vh] rounded-2xl shadow-2xl relative flex flex-col overflow-hidden border border-slate-200"
-            >
-               {/* Browser Top Bar */}
-               <div className="bg-slate-200/50 border-b border-slate-300 w-full p-4 flex items-center space-x-4">
-                 <div className="flex space-x-2">
-                   <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                   <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                   <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                 </div>
-                 <div className="flex-1">
-                   <div className="bg-white/70 border border-slate-300 rounded-lg px-4 py-1.5 text-sm font-medium text-slate-500 text-center flex items-center justify-center space-x-2 w-64 mx-auto">
-                     <Lock className="w-3 h-3" />
-                     <span>yourwebsite.com</span>
-                   </div>
-                 </div>
-                 <button onClick={() => setShowSimulator(false)} className="text-slate-500 hover:text-slate-800 transition-colors bg-white/50 hover:bg-white rounded-full p-1.5 ring-1 ring-slate-900/5">
-                    <X className="w-4 h-4" />
-                 </button>
-               </div>
-               
-               {/* Browser Body / Iframe */}
-               <div className="flex-1 w-full relative bg-white overflow-hidden">
-                  <iframe 
-                    title="Website Simulator"
-                    className="w-full h-full border-none"
-                    srcDoc={`
-                      <!DOCTYPE html>
-                      <html>
-                      <head>
-                        <title>My Test Page</title>
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <style>
-                          body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; background-color: #f8fafc; color: #334155; overflow-x: hidden; }
-                          header { padding: 1.5rem 2rem; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
-                          .logo { font-size: 1.25rem; font-weight: 700; color: #0f172a; }
-                          .nav { display: flex; gap: 1rem; }
-                          .nav-item { width: 60px; height: 12px; background: #e2e8f0; border-radius: 6px; }
-                          main { padding: 3rem 2rem; max-width: 800px; margin: 0 auto; }
-                          h1 { margin: 0 0 1.5rem 0; font-size: 2.5rem; color: #0f172a; line-height: 1.2; }
-                          p { font-size: 1.125rem; line-height: 1.6; color: #475569; margin-bottom: 2rem; }
-                          .hero-box { height: 240px; background: #e2e8f0; border-radius: 12px; margin-bottom: 3rem; }
-                          .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
-                          .card { height: 140px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-                        </style>
-                      </head>
-                      <body>
-                        <header>
-                          <div class="logo">${saasConfig.websiteName || 'Acme Corp'}</div>
-                          <div class="nav">
-                            <div class="nav-item"></div>
-                            <div class="nav-item"></div>
-                            <div class="nav-item"></div>
-                          </div>
-                        </header>
-                        <main>
-                          <h1>Welcome to ${saasConfig.websiteName || 'our website'}</h1>
-                          <p>This is a simulated view. The Voice AI Agent widget should appear in the bottom right corner of this frame, just like it will on your real website.</p>
-                          <div class="hero-box"></div>
-                          <div class="grid">
-                            <div class="card"></div>
-                            <div class="card"></div>
-                            <div class="card"></div>
-                          </div>
-                        </main>
-                        
-                        <!-- AI Agent Embed Script -->
-                        <script>
-                          window.VOICEGPT_CONFIG = {
-                            websiteName: ${JSON.stringify(saasConfig.websiteName)},
-                            agentName: ${JSON.stringify(saasConfig.agentName)},
-                            websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},
-                            customInstructions: ${JSON.stringify(saasConfig.customInstructions)},
-                            voiceGender: ${JSON.stringify(saasConfig.voiceGender)},
-                            language: ${JSON.stringify(saasConfig.language)},
-                            personality: ${JSON.stringify(saasConfig.personality)}
-                          };
-                        </script>
-                        <script src="${window.location.origin}/embed.js" async></script>
-                      </body>
-                      </html>
-                    `}
-                  />
-               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {showEmbed && (
@@ -1044,6 +1320,28 @@ export default function App() {
                           >
                               Dismiss
                           </button>
+                      </div>
+                  </motion.div>
+              )}
+          </AnimatePresence>
+          <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
+
+          <AnimatePresence>
+              {authLoading && (
+                  <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-[120] bg-slate-900/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center"
+                  >
+                      <div className="w-20 h-20 bg-blue-600 rounded-[28px] flex items-center justify-center shadow-2xl shadow-blue-500/20 mb-8 animate-pulse">
+                          <ShieldCheck className="w-10 h-10 text-white" />
+                      </div>
+                      <h2 className="text-3xl font-bold text-white mb-3">Authenticating...</h2>
+                      <p className="text-slate-400 text-lg max-w-sm">Verifying your secure magic link. You'll be logged in shortly.</p>
+                      <div className="mt-8 flex items-center space-x-2 text-blue-400 font-medium bg-blue-500/10 px-4 py-2 rounded-full">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Finalizing connection</span>
                       </div>
                   </motion.div>
               )}
