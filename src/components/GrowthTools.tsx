@@ -176,52 +176,54 @@ function TryOtherTools({ currentToolId, onToolSelect }: { currentToolId: string,
   ].filter(t => t.id !== currentToolId && (activeCategory === 'All' || t.category === activeCategory));
 
   return (
-    <div className="mt-32 border-t border-slate-200 pt-20">
-      <div className="text-center mb-12">
-        <h2 className="text-3xl font-bold text-slate-900 mb-4">Try Other Tools</h2>
-        <p className="text-slate-500 text-lg max-w-2xl mx-auto mb-8">
-          Explore our other free growth tools to further optimize your online presence.
-        </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          {['All', 'Optimization', 'Documentation', 'Generative'].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat as any)}
-              className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
-                activeCategory === cat 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
-                : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-blue-300 hover:text-blue-600'
-              }`}
-            >
-              {cat}
-            </button>
+    <div className="py-16 md:py-24 border-t border-slate-200">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 mb-4">Try Other Tools</h2>
+          <p className="text-slate-500 text-lg md:text-xl font-medium max-w-3xl mx-auto mb-12">
+            Explore our other free growth tools to further optimize your online presence.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {['All', 'Optimization', 'Documentation', 'Generative'].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat as any)}
+                className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
+                  activeCategory === cat 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-blue-300 hover:text-blue-600'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-wrap justify-center gap-6">
+          {tools.map((tool, i) => (
+             <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="bg-white p-6 rounded-[32px] ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all group flex flex-col items-start w-full md:w-[calc(50%-12px)] lg:w-[calc(33.33%-16px)] xl:w-[calc(25%-18px)]"
+             >
+                <div className={`w-14 h-14 ${tool.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                   {tool.icon}
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">{tool.title}</h3>
+                <p className="text-slate-500 text-base leading-relaxed mb-4">
+                   {tool.desc}
+                </p>
+                <button 
+                  onClick={() => onToolSelect?.(tool.id as any)}
+                  className="mt-auto flex items-center text-blue-600 font-bold hover:translate-x-1 transition-transform"
+                >
+                   Use Tool <ChevronRight className="w-5 h-5 ml-1" />
+                </button>
+             </motion.div>
           ))}
         </div>
-      </div>
-      <div className="flex flex-wrap justify-center gap-6">
-        {tools.map((tool, i) => (
-           <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="bg-white p-6 rounded-[32px] ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all group flex flex-col items-start w-full md:w-[calc(50%-12px)] lg:w-[calc(33.33%-16px)] xl:w-[calc(25%-18px)]"
-           >
-              <div className={`w-14 h-14 ${tool.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                 {tool.icon}
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">{tool.title}</h3>
-              <p className="text-slate-500 text-base leading-relaxed mb-4">
-                 {tool.desc}
-              </p>
-              <button 
-                onClick={() => onToolSelect?.(tool.id as any)}
-                className="mt-auto flex items-center text-blue-600 font-bold hover:translate-x-1 transition-transform"
-              >
-                 Use Tool <ChevronRight className="w-5 h-5 ml-1" />
-              </button>
-           </motion.div>
-        ))}
       </div>
     </div>
   );
@@ -229,7 +231,7 @@ function TryOtherTools({ currentToolId, onToolSelect }: { currentToolId: string,
 
 function ToolFAQ() {
   return (
-    <div className="mt-32 max-w-4xl mx-auto px-6">
+    <div className="py-16 md:py-24 max-w-4xl mx-auto px-6">
       <div className="text-center mb-16">
         <h3 className="text-blue-600 font-bold tracking-widest text-xs uppercase mb-3">
           Knowledge Base
@@ -247,69 +249,16 @@ function ToolFAQ() {
   );
 }
 
-export function VoiceAIPopup({ onCTA }: { onCTA: () => void }) {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsVisible(true), 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (!isVisible) return null;
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, x: -50, scale: 0.9 }}
-        animate={{ opacity: 1, x: 0, scale: 1 }}
-        className="fixed bottom-8 left-8 z-[100] max-w-sm w-full"
-      >
-        <div className="bg-white rounded-3xl shadow-2xl ring-1 ring-slate-200 p-6 overflow-hidden relative border-t-4 border-blue-600">
-          <button 
-            onClick={() => setIsVisible(false)}
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors p-1"
-          >
-            <Undo2 className="w-4 h-4 rotate-90" />
-          </button>
-          
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-              <Mic className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-900">Voice Assistant Ready</h4>
-              <div className="flex items-center text-xs text-green-600 font-bold">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse" /> Active Now
-              </div>
-            </div>
-          </div>
-          
-          <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-            Did you know your business can handle 100+ calls simultaneously with AI? See how it works.
-          </p>
-          
-          <button 
-            onClick={() => { setIsVisible(false); onCTA(); }}
-            className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center group shadow-lg shadow-blue-600/20"
-          >
-            Create Your Voice Agent <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-          </button>
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
-
 export function VoiceAIUpsell({ onCTA }: { onCTA: () => void }) {
   return (
-    <div className="mt-20 border-t border-slate-200 pt-20">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
+    <div className="py-16 md:py-24 border-t border-slate-200">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-16">
           <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-black uppercase tracking-widest mb-4 border border-blue-100">
             <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Next-Level Growth
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4 tracking-tight">Stop wasting time on repetitive tasks</h2>
-          <p className="text-slate-500 text-lg max-w-2xl mx-auto font-light">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 mb-4">Stop wasting time on repetitive tasks</h2>
+          <p className="text-slate-500 text-lg md:text-xl font-medium max-w-3xl mx-auto mb-16">
             Focus on what matters most. Let your AI voice agent handle the rest, from customer support to appointment booking.
           </p>
         </div>
@@ -411,7 +360,7 @@ export function SEOAnalyzer({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -423,7 +372,7 @@ export function SEOAnalyzer({ onBack, onCTA, onToolSelect }: ToolProps) {
               <TrendingUp className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">SEO Analyzer</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">SEO Analyzer</h1>
               <p className="text-slate-400 text-sm">Powered by VoiceGPT Insights</p>
             </div>
           </div>
@@ -539,7 +488,7 @@ export function SpeedTester({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -551,7 +500,7 @@ export function SpeedTester({ onBack, onCTA, onToolSelect }: ToolProps) {
               <Clock className="w-6 h-6 text-teal-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Speed Tester</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Speed Tester</h1>
               <p className="text-slate-400 text-sm">Performance Audit by VoiceGPT</p>
             </div>
           </div>
@@ -577,7 +526,7 @@ export function SpeedTester({ onBack, onCTA, onToolSelect }: ToolProps) {
         )}
 
         {status === 'testing' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="relative w-48 h-48 mb-8">
               <svg className="w-full h-full transform -rotate-90">
                 <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
@@ -737,7 +686,7 @@ export function SitemapGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -749,7 +698,7 @@ export function SitemapGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
               <Globe className="w-6 h-6 text-indigo-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Sitemap Generator</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Sitemap Generator</h1>
               <p className="text-slate-400 text-sm">Crawl & Index by VoiceGPT</p>
             </div>
           </div>
@@ -775,7 +724,7 @@ export function SitemapGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
         )}
 
         {status === 'crawling' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-8" />
             <div className="text-4xl font-black text-indigo-600 mb-2">{pagesFound}</div>
             <p className="text-slate-600 font-bold text-xl tracking-tight">Pages discovered...</p>
@@ -867,7 +816,7 @@ export function URLExtractor({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -879,7 +828,7 @@ export function URLExtractor({ onBack, onCTA, onToolSelect }: ToolProps) {
               <Layout className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">URL Extractor</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">URL Extractor</h1>
               <p className="text-slate-400 text-sm">Content Audit by VoiceGPT</p>
             </div>
           </div>
@@ -905,7 +854,7 @@ export function URLExtractor({ onBack, onCTA, onToolSelect }: ToolProps) {
         )}
 
         {status === 'extracting' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-8" />
             <p className="text-slate-600 font-bold text-xl tracking-tight">Scanning website architecture...</p>
           </div>
@@ -984,7 +933,7 @@ export function FAQGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -996,7 +945,7 @@ export function FAQGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
               <Sparkles className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">FAQ Generator</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">FAQ Generator</h1>
               <p className="text-slate-400 text-sm">Instant Answers by VoiceGPT</p>
             </div>
           </div>
@@ -1022,7 +971,7 @@ export function FAQGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
         )}
 
         {status === 'generating' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-amber-100 border-t-amber-600 rounded-full animate-spin mb-8" />
             <p className="text-slate-600 font-bold text-xl tracking-tight">Drafting responses...</p>
           </div>
@@ -1088,7 +1037,7 @@ export function BusinessNameGenerator({ onBack, onCTA, onToolSelect }: ToolProps
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1100,7 +1049,7 @@ export function BusinessNameGenerator({ onBack, onCTA, onToolSelect }: ToolProps
               <Bot className="w-6 h-6 text-rose-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Brand Name Generator</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Brand Name Generator</h1>
               <p className="text-slate-400 text-sm">Identity Design by VoiceGPT</p>
             </div>
           </div>
@@ -1126,7 +1075,7 @@ export function BusinessNameGenerator({ onBack, onCTA, onToolSelect }: ToolProps
         )}
 
         {status === 'generating' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-rose-100 border-t-rose-600 rounded-full animate-spin mb-8" />
             <p className="text-slate-600 font-bold text-xl tracking-tight">Brainstorming ideas...</p>
           </div>
@@ -1174,7 +1123,7 @@ export function PrivacyPolicyGenerator({ onBack, onCTA, onToolSelect }: ToolProp
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1186,7 +1135,7 @@ export function PrivacyPolicyGenerator({ onBack, onCTA, onToolSelect }: ToolProp
               <ShieldCheck className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Privacy Policy Gen</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Privacy Policy Gen</h1>
               <p className="text-slate-400 text-sm">Compliance by VoiceGPT</p>
             </div>
           </div>
@@ -1212,7 +1161,7 @@ export function PrivacyPolicyGenerator({ onBack, onCTA, onToolSelect }: ToolProp
         )}
 
         {status === 'generating' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin mb-8" />
             <p className="text-slate-600 font-bold text-xl tracking-tight">Applying legal templates...</p>
           </div>
@@ -1260,7 +1209,7 @@ export function TermsGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1272,7 +1221,7 @@ export function TermsGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
               <CheckCircle2 className="w-6 h-6 text-slate-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Terms & Conditions</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Terms & Conditions</h1>
               <p className="text-slate-400 text-sm">Agreement Builder by VoiceGPT</p>
             </div>
           </div>
@@ -1298,7 +1247,7 @@ export function TermsGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
         )}
 
         {status === 'generating' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-slate-100 border-t-slate-600 rounded-full animate-spin mb-8" />
             <p className="text-slate-600 font-bold text-xl tracking-tight">Generating document...</p>
           </div>
@@ -1377,7 +1326,7 @@ Allow: /`;
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1435,7 +1384,7 @@ Allow: /`;
         )}
 
         {status === 'generating' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-cyan-100 border-t-cyan-600 rounded-full animate-spin mb-8" />
             <p className="text-slate-600 font-bold text-xl tracking-tight">Creating file...</p>
           </div>
@@ -1502,7 +1451,7 @@ export function DomainGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1534,7 +1483,7 @@ export function DomainGenerator({ onBack, onCTA, onToolSelect }: ToolProps) {
         </form>
 
         {status === 'generating' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-8" />
             <p className="text-slate-600 font-bold text-xl tracking-tight">Checking availability...</p>
           </div>
@@ -1576,7 +1525,7 @@ export function WordCounter({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1639,7 +1588,7 @@ export function ReadingTimeCalculator({ onBack, onCTA, onToolSelect }: ToolProps
   ];
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1660,7 +1609,7 @@ export function ReadingTimeCalculator({ onBack, onCTA, onToolSelect }: ToolProps
             const minutes = Math.ceil(words / speed.wpm);
             return (
               <div key={i} className="bg-slate-50 rounded-2xl p-6 text-center border border-slate-100">
-                <div className="text-3xl font-bold text-slate-900 mb-1">{minutes} min</div>
+                <div className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 mb-1">{minutes} min</div>
                 <div className="text-sm font-bold text-blue-600 mb-2 uppercase tracking-wider">{speed.label}</div>
                 <div className="text-xs text-slate-400 font-medium">{speed.desc} ({speed.wpm} WPM)</div>
               </div>
@@ -1703,7 +1652,7 @@ export function CaseConverter({ onBack, onCTA, onToolSelect }: ToolProps) {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1760,7 +1709,7 @@ export function RemoveDuplicateLines({ onBack, onCTA, onToolSelect }: ToolProps)
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1824,7 +1773,7 @@ export function TextSorter({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1935,7 +1884,7 @@ function AIGenerator({
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>
@@ -1972,7 +1921,7 @@ function AIGenerator({
         )}
 
         {status === 'generating' && (
-          <div className="py-20 flex flex-col items-center">
+          <div className="py-24 md:py-32 flex flex-col items-center">
             <div className="w-24 h-24 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-8" />
             <p className="text-slate-600 font-bold text-xl tracking-tight">Gemini AI is crafting your content...</p>
           </div>
@@ -2091,7 +2040,7 @@ export function TextReverser({ onBack, onCTA, onToolSelect }: ToolProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full px-6 py-20">
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
       <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
         <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
       </button>

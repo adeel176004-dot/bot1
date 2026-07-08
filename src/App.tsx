@@ -9,13 +9,21 @@ import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, 
 import { motion, AnimatePresence } from 'motion/react';
 import { SupportAgent } from './components/SupportAgent';
 import { TOP_100_LANGUAGES } from './data/languages';
-import { SEOAnalyzer, SpeedTester, SitemapGenerator, URLExtractor, FAQGenerator, BusinessNameGenerator, PrivacyPolicyGenerator, TermsGenerator, RobotsGenerator, DomainGenerator, WordCounter, ReadingTimeCalculator, CaseConverter, RemoveDuplicateLines, TextSorter, TextReverser, BlogWriter, ArticleWriter, ParagraphGenerator, EssayWriter, VoiceAIUpsell, VoiceAIPopup } from './components/GrowthTools';
+import { SEOAnalyzer, SpeedTester, SitemapGenerator, URLExtractor, FAQGenerator, BusinessNameGenerator, PrivacyPolicyGenerator, TermsGenerator, RobotsGenerator, DomainGenerator, WordCounter, ReadingTimeCalculator, CaseConverter, RemoveDuplicateLines, TextSorter, TextReverser, BlogWriter, ArticleWriter, ParagraphGenerator, EssayWriter, VoiceAIUpsell } from './components/GrowthTools';
+import { FeaturesPage } from './components/Features';
+import { InteractiveWaveform } from './components/Waveform';
+import { MouseFollowGlow } from './components/GlowEffect';
 import { OneMinuteChallenge } from './components/OneMinuteChallenge';
 import { FAQItem, COMMON_FAQS } from './components/FAQ';
-import { TestimonialSlider } from './components/TestimonialSlider';
-import { supabase } from './lib/supabase';
-import { User } from '@supabase/supabase-js';
 import { AuthModal } from './components/AuthModal';
+import { UserProfile } from './components/UserProfile';
+import { Pricing } from './components/Pricing';
+
+type User = {
+  email: string;
+  name: string;
+  id: string;
+};
 
 export default function App() {
   if (window.location.pathname === '/widget' || window.VOICEGPT_CONFIG) {
@@ -30,13 +38,15 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
 
   const [appMode, setAppMode] = useState<'saas' | 'agent'>('saas');
-  const [currentView, setCurrentView] = useState<'landing' | 'tools'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'tools' | 'features' | 'pricing'>('landing');
   const [activeTool, setActiveTool] = useState<'seo' | 'speed' | 'sitemap' | 'url-extractor' | 'faq-gen' | 'name-gen' | 'privacy-gen' | 'terms-gen' | 'robots-gen' | 'domain-gen' | 'word-counter' | 'reading-time' | 'case-converter' | 'remove-duplicates' | 'text-sorter' | 'text-reverser' | 'blog-writer' | 'article-writer' | 'paragraph-gen' | 'essay-writer' | null>(null);
   const [activeCategory, setActiveCategory] = useState<'All' | 'Optimization' | 'Documentation' | 'Generative'>('All');
   const [isCreating, setIsCreating] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -161,17 +171,38 @@ export default function App() {
   };
   
   useEffect(() => {
-    // Handle auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-    });
-
     return () => {
        stopRecording();
-       subscription.unsubscribe();
     };
   }, []);
+
+  const handleAuthSuccess = (userData: { email: string; name: string }) => {
+    setUser({
+      ...userData,
+      id: Math.random().toString(36).substring(7)
+    });
+    setShowAuth(false);
+    if (pendingAction === 'create_agent') {
+      setIsCreating(true);
+      setPendingAction(null);
+    }
+  };
+
+  const handleSelectPlan = (planId: string) => {
+    if (user) {
+      setIsCreating(true);
+    } else {
+      setPendingAction('create_agent');
+      setAuthMode('signup');
+      setShowAuth(true);
+    }
+  };
+
+  const handleDashboard = () => {
+    // For now, we can just switch to tools or show a notification
+    setCurrentView('tools');
+    setActiveTool(null);
+  };
 
   if (appMode === 'saas') {
     if (currentView === 'tools') {
@@ -464,14 +495,13 @@ export default function App() {
                    </motion.div>
                 ))}
              </div>
-             <VoiceAIPopup onCTA={handleCTA} />
           </div>
         );
       };
 
       return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-          <header className="border-b border-slate-200/60 bg-white/50 backdrop-blur-md sticky top-0 z-50">
+          <header className="pt-0 mt-0 border-b border-slate-200/60 bg-white/50 backdrop-blur-md sticky top-0 z-50">
              <div className="max-w-7xl mx-auto w-full px-6 h-16 flex items-center justify-between">
                 <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className="flex items-center space-x-2 text-blue-600 hover:opacity-80 transition-opacity">
                    <Bot className="w-6 h-6" />
@@ -479,14 +509,14 @@ export default function App() {
                 </button>
                 <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-600">
                    <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className="hover:text-blue-600 transition-colors">Home</button>
-                   <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className="hover:text-blue-600 transition-colors">Features</button>
+                   <button onClick={() => {setCurrentView('features'); setActiveTool(null);}} className={`hover:text-blue-600 transition-colors ${currentView === 'features' ? 'text-blue-600 font-bold' : ''}`}>Features</button>
                    <button 
                       onClick={() => {setCurrentView('tools'); setActiveTool(null);}}
                       className="text-blue-600 font-bold"
                    >
                       Free Tools
                    </button>
-                   <a href="#" className="hover:text-blue-600 transition-colors">Pricing</a>
+                   <button onClick={() => {setCurrentView('pricing'); setActiveTool(null);}} className={`hover:text-blue-600 transition-colors ${currentView === 'pricing' ? 'text-blue-600 font-bold' : ''}`}>Pricing</button>
                    <a href="#" className="hover:text-blue-600 transition-colors">Contact</a>
                 </nav>
                 <button 
@@ -497,31 +527,35 @@ export default function App() {
                 </button>
                 <div className="flex items-center space-x-4">
                   {user ? (
+                    <UserProfile 
+                      user={user} 
+                      onLogout={() => setUser(null)} 
+                      onDashboard={handleDashboard} 
+                    />
+                  ) : (
                     <div className="flex items-center space-x-4">
-                      <span className="text-sm font-medium text-slate-600 hidden lg:inline-block">
-                        {user.email}
-                      </span>
                       <button 
-                        onClick={() => supabase.auth.signOut()}
-                        className="text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 px-4 py-2 rounded-full transition-colors"
+                        onClick={() => {setAuthMode('signin'); setShowAuth(true);}}
+                        className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors"
                       >
-                        Sign Out
+                        Sign In
+                      </button>
+                      <button 
+                        onClick={() => {setCurrentView('pricing'); setActiveTool(null);}}
+                        className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
+                      >
+                        Let's Get Started
                       </button>
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => setShowAuth(true)}
-                      className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
-                    >
-                      Sign Up
-                    </button>
                   )}
                 </div>
              </div>
           </header>
 
           <main className="flex-1">
-             {renderToolContent()}
+             {currentView === 'features' && <FeaturesPage />}
+             {currentView === 'pricing' && <Pricing onSelectPlan={handleSelectPlan} />}
+             {currentView === 'tools' && renderToolContent()}
           </main>
 
           <footer className="border-t border-slate-200/60 bg-white py-8">
@@ -532,8 +566,11 @@ export default function App() {
                 </div>
              </div>
           </footer>
-          <SupportAgent />
-          <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
+          <AuthModal 
+            isOpen={showAuth} 
+            onClose={() => setShowAuth(false)} 
+            onSuccess={handleAuthSuccess} initialMode={authMode}
+          />
         </div>
       );
     }
@@ -541,7 +578,7 @@ export default function App() {
     if (!isCreating) {
       return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-          <header className="border-b border-slate-200/60 bg-white/50 backdrop-blur-md sticky top-0 z-50">
+          <header className="pt-0 mt-0 border-b border-slate-200/60 bg-white/50 backdrop-blur-md sticky top-0 z-50">
              <div className="max-w-7xl mx-auto w-full px-6 h-16 flex items-center justify-between">
                 <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className="flex items-center space-x-2 text-blue-600 hover:opacity-80 transition-opacity">
                    <Bot className="w-6 h-6" />
@@ -549,59 +586,93 @@ export default function App() {
                 </button>
                 <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-600">
                    <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className={`hover:text-blue-600 transition-colors ${currentView === 'landing' ? 'text-blue-600' : ''}`}>Home</button>
-                   <button onClick={() => {setCurrentView('landing'); setActiveTool(null);}} className={`hover:text-blue-600 transition-colors ${currentView === 'landing' ? 'text-blue-600' : ''}`}>Features</button>
+                   <button onClick={() => {setCurrentView('features'); setActiveTool(null);}} className={`hover:text-blue-600 transition-colors ${currentView === 'features' ? 'text-blue-600 font-bold' : ''}`}>Features</button>
                    <button 
                       onClick={() => {setCurrentView('tools'); setActiveTool(null);}}
                       className={`hover:text-blue-600 transition-colors ${currentView === 'tools' ? 'text-blue-600' : ''}`}
                    >
                       Free Tools
                    </button>
-                   <a href="#" className="hover:text-blue-600 transition-colors">Pricing</a>
+                   <button onClick={() => {setCurrentView('pricing'); setActiveTool(null);}} className={`hover:text-blue-600 transition-colors ${currentView === 'pricing' ? 'text-blue-600 font-bold' : ''}`}>Pricing</button>
                    <a href="#" className="hover:text-blue-600 transition-colors">Contact</a>
                 </nav>
                 <div className="flex items-center space-x-4">
                   {user ? (
+                    <UserProfile 
+                      user={user} 
+                      onLogout={() => setUser(null)} 
+                      onDashboard={handleDashboard} 
+                    />
+                  ) : (
                     <div className="flex items-center space-x-4">
-                      <span className="text-sm font-medium text-slate-600 hidden lg:inline-block">
-                        {user.email}
-                      </span>
                       <button 
-                        onClick={() => supabase.auth.signOut()}
-                        className="text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 px-4 py-2 rounded-full transition-colors"
+                        onClick={() => {setAuthMode('signin'); setShowAuth(true);}}
+                        className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors"
                       >
-                        Sign Out
+                        Sign In
+                      </button>
+                      <button 
+                        onClick={() => {setCurrentView('pricing'); setActiveTool(null);}}
+                        className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
+                      >
+                        Let's Get Started
                       </button>
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => setShowAuth(true)}
-                      className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
-                    >
-                      Sign Up
-                    </button>
                   )}
                 </div>
              </div>
           </header>
           
-          <main className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-             <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-100 blur-[120px] opacity-60 pointer-events-none" />
-             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-100 blur-[100px] opacity-60 pointer-events-none" />
-             
-             <div className="max-w-4xl w-full z-10 text-center space-y-8 mt-12 mb-8">
-                <div className="inline-flex items-center space-x-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-full text-sm font-medium ring-1 ring-blue-500/20 mb-4">
-                   <Sparkles className="w-4 h-4" />
-                   <span>Next-generation voice experience</span>
-                </div>
-                <h1 className="text-5xl md:text-6xl lg:text-[72px] font-semibold tracking-tight text-[#111827] leading-[1.1]">
-                   Supercharge your website with Voice AI
-                </h1>
-                <p className="text-xl md:text-2xl text-slate-500 max-w-3xl mx-auto font-medium">
-                   Build, customize, and deploy a superhuman AI voice agent that knows everything about your business in under 60 seconds.
-                </p>
-                <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <main className="flex-1 flex flex-col items-center relative overflow-hidden">
+             {currentView === 'landing' && (
+               <>
+                 <MouseFollowGlow />
+                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-100 blur-[120px] opacity-60 pointer-events-none" />
+                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-100 blur-[100px] opacity-60 pointer-events-none" />
+                 
+                 <div className="max-w-5xl w-full z-10 text-center space-y-8 px-6 py-16 md:py-24">
+                 <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="inline-flex items-center space-x-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-sm font-bold ring-1 ring-blue-500/20 mb-4"
+                 >
+                    <Zap className="w-4 h-4" />
+                    <span>Create your voice agent in under 60 seconds</span>
+                 </motion.div>
+                 <motion.h1 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
+                    className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-slate-900 leading-[1.1]"
+                 >
+                    Supercharge your website with <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-500">Voice AI</span>
+                 </motion.h1>
+                 <motion.p 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
+                    className="text-lg md:text-xl text-slate-500 max-w-3xl mx-auto font-medium"
+                 >
+                    Train your superhuman AI voice agent instantly by pasting your website URL. Auto-detects your data and handles customer queries in under 60 seconds.
+                 </motion.p>
+                 <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+                    className="py-12"
+                 >
+                    <InteractiveWaveform />
+                 </motion.div>
+
+                 <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
+                    className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4"
+                 >
                    <button 
-                      onClick={() => setIsCreating(true)}
+                      onClick={() => {setCurrentView('pricing'); setActiveTool(null);}}
                       className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-[#1d4ed8] text-white font-semibold px-8 py-4 rounded-full text-lg hover:bg-blue-800 transition-all hover:shadow-xl hover:-translate-y-1 duration-300"
                    >
                       <span>Create your voice AI agent</span>
@@ -613,15 +684,15 @@ export default function App() {
                    >
                       <span>See Demo</span>
                    </button>
-                </div>
-             </div>
+                 </motion.div>
+              </div>
 
 
              {/* Feature Cards Section */}
-             <div className="max-w-7xl w-full mx-auto mt-32 mb-20 z-10 px-4">
+             <div className="max-w-7xl w-full mx-auto py-16 md:py-24 z-10 px-6">
                 <div className="text-center mb-16">
-                   <h2 className="text-4xl font-bold tracking-tight text-[#111827]">Grow your business automatically</h2>
-                   <p className="text-slate-500 mt-4 text-xl font-medium">Our AI handles the interactions, allowing you to focus on growth.</p>
+                   <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 mb-4">Grow your business automatically</h2>
+                   <p className="text-slate-500 text-lg md:text-xl font-medium max-w-3xl mx-auto">Our AI handles the interactions, allowing you to focus on growth.</p>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
@@ -684,9 +755,9 @@ export default function App() {
              </div>
 
              {/* Before & After Comparison Section */}
-             <div className="max-w-5xl w-full mx-auto mt-24 mb-20 px-4 z-10">
-                <div className="text-center max-w-3xl mx-auto mb-12">
-                   <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-slate-900 leading-tight">
+             <div className="max-w-5xl w-full mx-auto py-16 md:py-24 px-6 z-10">
+                <div className="text-center max-w-3xl mx-auto mb-16">
+                   <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
                       Imagine what you could do if you had an <span className="underline decoration-dotted underline-offset-8 decoration-slate-400">expert voice AI answering calls 24/7</span>
                    </h2>
                 </div>
@@ -765,9 +836,9 @@ export default function App() {
 
 
              {/* How it Works Section */}
-             <div className="max-w-6xl w-full mx-auto mb-32 px-4 z-10">
-                <div className="text-center mb-20">
-                   <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900 leading-tight">
+             <div className="max-w-6xl w-full mx-auto py-16 md:py-24 px-6 z-10">
+                <div className="text-center mb-16">
+                   <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
                       You're <span className="text-blue-600">three easy steps</span> away from your own personalized AI voice agent
                    </h2>
                 </div>
@@ -829,26 +900,8 @@ export default function App() {
                 </div>
              </div>
 
-             {/* Testimonials Section */}
-             <div className="bg-white py-16 mb-24 z-10 relative">
-                <div className="max-w-5xl w-full mx-auto px-6">
-                   <div className="text-center mb-12">
-                      <h3 className="text-blue-600 font-bold tracking-widest text-xs uppercase mb-3">
-                         Customer Testimonials
-                      </h3>
-                      <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">
-                         Don't just take our word for it
-                      </h2>
-                   </div>
-
-                   <div className="max-w-5xl mx-auto">
-                      <TestimonialSlider />
-                   </div>
-                </div>
-             </div>
-
              {/* FAQ Section */}
-             <div className="max-w-4xl w-full mx-auto mb-32 px-6 z-10 relative">
+             <div className="max-w-4xl w-full mx-auto py-16 md:py-24 px-6 z-10 relative">
                 <div className="text-center mb-16">
                    <h3 className="text-blue-600 font-bold tracking-widest text-xs uppercase mb-3">
                       Knowledge Base
@@ -892,6 +945,11 @@ export default function App() {
                    ))}
                 </div>
              </div>
+             <Pricing />
+               </>
+             )}
+             {currentView === 'features' && <FeaturesPage />}
+             {currentView === 'pricing' && <Pricing onSelectPlan={handleSelectPlan} />}
           </main>
 
           <footer className="border-t border-slate-200/60 bg-white py-8 z-10 relative">
@@ -907,14 +965,18 @@ export default function App() {
              </div>
           </footer>
           <SupportAgent isOpen={showDemo} onOpenChange={setShowDemo} />
-          <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
+          <AuthModal 
+            isOpen={showAuth} 
+            onClose={() => setShowAuth(false)} 
+            onSuccess={handleAuthSuccess} initialMode={authMode}
+          />
         </div>
       );
     }
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-        <header className="border-b border-slate-200/60 bg-white/50 backdrop-blur-md sticky top-0 z-50">
+        <header className="pt-0 mt-0 border-b border-slate-200/60 bg-white/50 backdrop-blur-md sticky top-0 z-50">
            <div className="max-w-7xl mx-auto w-full px-6 h-16 flex items-center justify-between">
               <div className="flex items-center space-x-2 text-blue-600">
                  <Bot className="w-6 h-6" />
@@ -922,40 +984,42 @@ export default function App() {
               </div>
               <div className="flex items-center space-x-4">
                   {user ? (
+                    <UserProfile 
+                      user={user} 
+                      onLogout={() => setUser(null)} 
+                      onDashboard={handleDashboard} 
+                    />
+                  ) : (
                     <div className="flex items-center space-x-4">
-                      <span className="text-sm font-medium text-slate-600 hidden lg:inline-block">
-                        {user.email}
-                      </span>
                       <button 
-                        onClick={() => supabase.auth.signOut()}
-                        className="text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 px-4 py-2 rounded-full transition-colors"
+                        onClick={() => {setAuthMode('signin'); setShowAuth(true);}}
+                        className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors"
                       >
-                        Sign Out
+                        Sign In
+                      </button>
+                      <button 
+                        onClick={() => {setCurrentView('pricing'); setActiveTool(null);}}
+                        className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
+                      >
+                        Let's Get Started
                       </button>
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => setShowAuth(true)}
-                      className="text-sm font-medium text-white bg-blue-600 px-6 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/10"
-                    >
-                      Sign Up
-                    </button>
                   )}
                 </div>
            </div>
         </header>
 
-        <main className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        <main className="flex-1 flex flex-col items-center justify-center py-12 md:py-20 px-6 relative overflow-hidden">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-100 blur-[100px] opacity-60 pointer-events-none" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-100 blur-[100px] opacity-60 pointer-events-none" />
           
-          <div className="max-w-xl w-full z-10 bg-white p-8 rounded-3xl shadow-xl ring-1 ring-slate-900/5 my-8">
-            <div className="flex flex-col items-center mb-8">
-               <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center ring-1 ring-blue-100 mb-4">
+          <div className="max-w-xl w-full z-10 bg-white p-10 md:p-12 rounded-[32px] shadow-xl ring-1 ring-slate-900/5 my-8">
+            <div className="flex flex-col items-center mb-10">
+               <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center ring-1 ring-blue-100 mb-6">
                    <Sparkles className="w-8 h-8 text-blue-500" />
                </div>
-               <h1 className="text-3xl font-medium tracking-tight text-slate-900">Create your voice agent</h1>
-               <p className="text-slate-500 mt-2 text-center">Configure your website's AI agent in seconds.</p>
+               <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Create your voice agent</h1>
+               <p className="text-slate-500 mt-3 text-center text-lg">Configure your website's AI agent in seconds.</p>
             </div>
 
             <div className="space-y-4">
@@ -1159,16 +1223,33 @@ export default function App() {
                 <div>
                   <h2 className="text-2xl font-bold tracking-tight text-slate-900 mb-2">Embed your agent</h2>
                   <p className="text-slate-500 mb-6 text-sm">Copy and paste this script into your website to enable the voice agent.</p>
-                  
                   <div className="bg-slate-900 rounded-xl p-4 relative group mb-4">
                      <pre className="text-slate-300 text-xs overflow-x-auto font-mono leading-relaxed h-[300px] whitespace-pre-wrap">
-{`<script>\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)}\n  };\n  var script = document.createElement("script");\n  script.src = "${window.location.origin}/embed.js";\n  document.body.appendChild(script);\n</script>`}
+ {`<script type='text/javascript'>
+//<![CDATA[
+  window.VOICEGPT_CONFIG = {
+    websiteName: ${JSON.stringify(saasConfig.websiteName)},
+    agentName: ${JSON.stringify(saasConfig.agentName)},
+    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},
+    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},
+    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},
+    language: ${JSON.stringify(saasConfig.language)},
+    personality: ${JSON.stringify(saasConfig.personality)}
+  };
+  (function() {
+    var s = document.createElement('script');
+    s.type = 'text/javascript';
+    s.src = '${window.location.origin}/vagent.js';
+    document.body.appendChild(s);
+  })();
+//]]>
+</script>`}
                      </pre>
                      <button 
                         onClick={() => {
-                           window.navigator.clipboard.writeText(`<script>\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)}\n  };\n  var script = document.createElement("script");\n  script.src = "${window.location.origin}/embed.js";\n  document.body.appendChild(script);\n</script>`);
-                           setCopied(true);
-                           setTimeout(() => setCopied(false), 2000);
+                            window.navigator.clipboard.writeText(`<script type='text/javascript'>\n//<![CDATA[\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)}\n  };\n  (function() {\n    var s = document.createElement('script');\n    s.type = 'text/javascript';\n    s.src = '${window.location.origin}/vagent.js';\n    document.body.appendChild(s);\n  })();\n//]]>\n</script>`);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
                         }}
                         className="absolute top-3 right-3 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors"
                      >
@@ -1176,7 +1257,8 @@ export default function App() {
                      </button>
                   </div>
                   <p className="text-xs text-slate-400 italic">
-                    Tip: Place this just before the closing &lt;/body&gt; tag for best performance.
+                    Tip: Place this just before the closing &lt;/body&gt; tag for best performance. 
+                    <strong className="text-amber-400 block mt-1">Important: If using Blogger or WordPress, make sure to paste this into the "HTML" editor, not the "Visual" editor.</strong>
                   </p>
                 </div>
 
@@ -1324,7 +1406,12 @@ export default function App() {
                   </motion.div>
               )}
           </AnimatePresence>
-          <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
+          <SupportAgent config={saasConfig} />
+          <AuthModal 
+            isOpen={showAuth} 
+            onClose={() => setShowAuth(false)} 
+            onSuccess={handleAuthSuccess} initialMode={authMode}
+          />
 
           <AnimatePresence>
               {authLoading && (

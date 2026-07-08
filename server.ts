@@ -47,10 +47,358 @@ async function startServer() {
 
   app.use(cors({ origin: '*' }));
   app.options('*', cors({ origin: '*' }));
+  
+  // Logging middleware for troubleshooting
+  app.use((req, res, next) => {
+    console.log(`[SERVER] ${req.method} ${req.url}`);
+    next();
+  });
+
+  app.get('/health', (req, res) => res.status(200).send('OK'));
+
   app.use((req, res, next) => {
     res.removeHeader('X-Frame-Options'); // Allow iframe embedding
     res.setHeader('Content-Security-Policy', "frame-ancestors *");
     next();
+  });
+
+  app.get('/vagent.js', (req, res) => {
+    console.log('[SERVER] Serving vagent.js');
+    try {
+      res.setHeader('Content-Type', 'application/javascript');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      let serverOrigin = host ? `${protocol}://${host}` : '';
+      
+      // Ensure no trailing slash
+      if (serverOrigin.endsWith('/')) {
+        serverOrigin = serverOrigin.slice(0, -1);
+      }
+      
+      if (serverOrigin && !serverOrigin.includes('localhost') && !serverOrigin.includes('127.0.0.1') && serverOrigin.startsWith('http:')) {
+        serverOrigin = serverOrigin.replace('http:', 'https:');
+      }
+
+      const js = `
+(function() {
+  var debug = true;
+  function log() { if (debug) console.log.apply(console, ["VoiceGPT:"].concat(Array.prototype.slice.call(arguments))); }
+  
+  log("Script loading...");
+
+  function initVoiceGpt() {
+    log("initVoiceGpt called");
+    if (window.VOICEGPT_LOADED) {
+        log("Already loaded, skipping");
+        return;
+    }
+    if (!document.body && !document.documentElement) {
+      log("No body/document yet, retrying...");
+      setTimeout(initVoiceGpt, 50);
+      return;
+    }
+    
+    if (document.getElementById('voicegpt-vanilla-widget')) {
+        log("Widget element already exists");
+        return;
+    }
+    window.VOICEGPT_LOADED = true;
+    
+    log("Initializing widget...");
+    
+    var config = window.VOICEGPT_CONFIG || {};
+    var websiteName = config.websiteName || 'Voice Agent';
+    var agentName = config.agentName || 'Agent';
+    var serverOrigin = "${serverOrigin}";
+    var origin = serverOrigin;
+    
+    try {
+        var scripts = document.getElementsByTagName('script');
+        for (var i = 0; i < scripts.length; i++) {
+            var s = scripts[i];
+            if (s.src && (s.src.indexOf('/vagent.js') !== -1 || s.src.indexOf('ais-') !== -1)) {
+                var scriptUrl = new URL(s.src);
+                if (!origin || origin.indexOf('localhost') !== -1 || origin.indexOf('127.0.0.1') !== -1 || origin === "" || origin.indexOf('example.com') !== -1) {
+                    origin = scriptUrl.origin;
+                    log("Detected origin from script tag:", origin);
+                }
+                break;
+            }
+        }
+    } catch(e) { log("Error detecting origin:", e); }
+
+    if (!origin || origin === "null") origin = window.location.origin;
+    window.VOICEGPT_ORIGIN = origin;
+    log("Final origin being used:", origin);
+    
+    var container = document.createElement('div');
+    container.id = 'voicegpt-vanilla-widget';
+    container.style.cssText = 'position: fixed !important; bottom: 24px !important; right: 24px !important; z-index: 2147483647 !important; width: 340px !important; height: 500px !important; pointer-events: none !important; display: block !important;';
+    
+    var inject = function() {
+        var target = document.body || document.documentElement;
+        if (target && !document.getElementById('voicegpt-vanilla-widget')) {
+            target.appendChild(container);
+            log("Container injected into", target.tagName);
+        }
+    };
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        inject();
+    } else {
+        window.addEventListener('load', inject);
+        window.addEventListener('DOMContentLoaded', inject);
+    }
+
+    var style = document.createElement('style');
+    style.innerHTML = \`
+        #voicegpt-vanilla-widget * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .av-fab { width: 60px; height: 60px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4); border: none; transition: transform 0.2s; z-index: 2147483647; position: absolute; bottom: 0; right: 0; pointer-events: auto; }
+        .av-fab:hover { transform: scale(1.05); }
+        .av-window { position: absolute; bottom: 80px; right: 0; width: 340px; height: 480px; background: white; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); display: none; flex-direction: column; overflow: hidden; border: 1px solid #e5e7eb; transition: opacity 0.3s; opacity: 0; transform: translateY(10px); z-index: 2147483647; pointer-events: auto; }
+        .av-window.av-open { display: flex; opacity: 1; transform: translateY(0); }
+        .av-header { background: #1e40af; color: white; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
+        .av-header-title { font-weight: 600; font-size: 16px; margin: 0; }
+        .av-header-subtitle { font-size: 12px; opacity: 0.8; margin: 0; }
+        .av-close { background: none; border: none; color: white; cursor: pointer; font-size: 20px; opacity: 0.8; padding: 0; margin: 0; }
+        .av-close:hover { opacity: 1; }
+        .av-body { flex: 1; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #f8fafc; overflow-y: auto; }
+        .av-avatar { width: 80px; height: 80px; border-radius: 50%; background: #e0e7ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(79,70,229,0.2); }
+        .av-status { font-size: 16px; font-weight: 500; color: #334155; margin-bottom: 8px; }
+        .av-desc { font-size: 14px; color: #64748b; margin-bottom: 32px; }
+        .av-btn { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 9999px; font-weight: 600; font-size: 15px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.3); transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .av-btn:hover { background: #1d4ed8; transform: translateY(-2px); }
+        .av-btn.av-recording { background: #ef4444; box-shadow: 0 4px 12px rgba(239,68,68,0.4); animation: av-pulse 2s infinite; }
+        @keyframes av-pulse { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 70% { box-shadow: 0 0 0 10px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
+        .av-link-box { margin-top: 16px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; text-align: left; width: 100%; display: none; }
+        .av-link-box a { color: #2563eb; font-weight: 500; text-decoration: none; word-break: break-all; font-size: 14px; }
+        .av-link-box a:hover { text-decoration: underline; }
+        .av-link-desc { font-size: 12px; color: #64748b; margin-top: 4px; }
+    \`;
+    document.head.appendChild(style);
+
+    container.innerHTML = \`
+        <div class="av-window" id="av-window">
+            <div class="av-header">
+                <div>
+                    <h3 class="av-header-title">\` + agentName + \`</h3>
+                    <p class="av-header-subtitle">AI Assistant for \` + websiteName + \`</p>
+                </div>
+                <button class="av-close" id="av-close">✕</button>
+            </div>
+            <div class="av-body">
+                <div class="av-avatar">🤖</div>
+                <div class="av-status" id="av-status">Hi! How can I help?</div>
+                <div class="av-desc">Tap the button and start speaking.</div>
+                <button class="av-btn" id="av-start-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                    <span id="av-btn-text">Start Speaking</span>
+                </button>
+                <div class="av-link-box" id="av-link-box">
+                    <a href="#" target="_blank" id="av-link-url">Link</a>
+                    <div class="av-link-desc" id="av-link-desc">Description</div>
+                </div>
+            </div>
+        </div>
+        <button class="av-fab" id="av-fab">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </button>
+    \`;
+
+    var fab = document.getElementById('av-fab');
+    var win = document.getElementById('av-window');
+    var closeBtn = document.getElementById('av-close');
+    var startBtn = document.getElementById('av-start-btn');
+    var btnText = document.getElementById('av-btn-text');
+    var statusText = document.getElementById('av-status');
+    var linkBox = document.getElementById('av-link-box');
+    var linkUrl = document.getElementById('av-link-url');
+    var linkDesc = document.getElementById('av-link-desc');
+
+    var hasGreeted = false;
+    fab.onclick = function() {
+        if (win.classList.contains('av-open')) {
+            win.classList.remove('av-open');
+            setTimeout(function() { win.style.display = 'none'; }, 300);
+        } else {
+            win.style.display = 'flex';
+            setTimeout(function() { win.classList.add('av-open'); }, 10);
+        }
+    };
+    closeBtn.onclick = function() {
+        win.classList.remove('av-open');
+        setTimeout(function() { win.style.display = 'none'; }, 300);
+    };
+
+    var isRecording = false;
+    var ws = null;
+    var inputAudioCtx = null;
+    var outputAudioCtx = null;
+    var mediaStream = null;
+    var nextStartTime = 0;
+
+    function pcmToBase64(pcmData) {
+      var buffer = new ArrayBuffer(pcmData.length * 2);
+      var view = new DataView(buffer);
+      for (var i = 0; i < pcmData.length; i++) {
+        var s = Math.max(-1, Math.min(1, pcmData[i]));
+        view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+      var bytes = new Uint8Array(buffer);
+      var binary = '';
+      for (var i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    function base64ToPcm(base64) {
+      var binary = atob(base64);
+      var buffer = new ArrayBuffer(binary.length);
+      var view = new DataView(buffer);
+      for (var i = 0; i < binary.length; i++) {
+        view.setUint8(i, binary.charCodeAt(i));
+      }
+      var int16Array = new Int16Array(buffer);
+      var float32Array = new Float32Array(int16Array.length);
+      for (var i = 0; i < int16Array.length; i++) {
+        float32Array[i] = int16Array[i] / 0x8000;
+      }
+      return float32Array;
+    }
+
+    function playAudioChunk(outputCtx, base64) {
+      var pcmMatch = base64ToPcm(base64);
+      var buffer = outputCtx.createBuffer(1, pcmMatch.length, 24000);
+      buffer.getChannelData(0).set(pcmMatch);
+      var source = outputCtx.createBufferSource();
+      buffer.getChannelData(0).set(pcmMatch);
+      source.buffer = buffer;
+      source.connect(outputCtx.destination);
+      var nextStart = nextStartTime;
+      if (nextStart < outputCtx.currentTime) {
+        nextStart = outputCtx.currentTime;
+      }
+      source.start(nextStart);
+      nextStartTime = nextStart + buffer.duration;
+    }
+
+    async function toggleRecording() {
+        if (isRecording) {
+            stopRecording();
+            return;
+        }
+
+        try {
+            var latestCfg = window.VOICEGPT_CONFIG || config || {};
+            var curWebName = latestCfg.websiteName || websiteName || 'Voice Agent';
+            var curAgName = latestCfg.agentName || agentName || 'Agent';
+            var linksObj = latestCfg.websiteLinks || [];
+            var instructionsObj = latestCfg.customInstructions || "";
+            var genderObj = latestCfg.voiceGender || "female";
+            var languageObj = latestCfg.language || "English";
+            var personalityObj = latestCfg.personality || "Friendly";
+            var paramsObj = {
+                websiteName: curWebName,
+                agentName: curAgName,
+                customInstructions: instructionsObj,
+                voiceGender: genderObj,
+                language: languageObj,
+                personality: personalityObj
+            };
+            if (linksObj && linksObj.length > 0) {
+                paramsObj.websiteLinks = JSON.stringify(linksObj);
+            }
+            if (document && document.body) {
+                paramsObj.websiteContext = document.body.innerText.substring(0, 5000);
+            }
+            var urlParams = new URLSearchParams(paramsObj).toString();
+            
+            var wsProtocol = origin.startsWith('https') ? 'wss://' : 'ws://';
+            var wsOrigin = origin.replace('http://', '').replace('https://', '');
+            ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
+            
+            var AudioContext = window.AudioContext || window.webkitAudioContext;
+            inputAudioCtx = new AudioContext({ sampleRate: 16000 });
+            outputAudioCtx = new AudioContext({ sampleRate: 24000 });
+            nextStartTime = 0;
+
+            mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            var source = inputAudioCtx.createMediaStreamSource(mediaStream);
+            var processor = inputAudioCtx.createScriptProcessor(4096, 1, 1);
+            
+            processor.onaudioprocess = function(e) {
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                var inputData = e.inputBuffer.getChannelData(0);
+                var base64Data = pcmToBase64(inputData);
+                ws.send(JSON.stringify({ audio: base64Data }));
+            };
+            
+            source.connect(processor);
+            processor.connect(inputAudioCtx.destination);
+
+            ws.onmessage = function(event) {
+                var msg = JSON.parse(event.data);
+                if (msg.type === 'display_link') {
+                    linkBox.style.display = 'block';
+                    linkUrl.href = msg.payload.url;
+                    linkUrl.innerText = msg.payload.url;
+                    linkDesc.innerText = msg.payload.description;
+                }
+                if (msg.audio) {
+                    playAudioChunk(outputAudioCtx, msg.audio);
+                }
+                if (msg.interrupted) {
+                    nextStartTime = outputAudioCtx.currentTime;
+                }
+            };
+            
+            isRecording = true;
+            statusText.innerText = 'Listening...';
+            startBtn.classList.add('av-recording');
+            btnText.innerText = 'Stop Speaking';
+            
+            if (!hasGreeted) {
+                hasGreeted = true;
+                statusText.innerText = 'Waking up...';
+            }
+        } catch(e) {
+            console.error("Failed to start voice:", e);
+            statusText.innerText = 'Microphone access denied.';
+        }
+    }
+
+    function stopRecording() {
+        if (ws) { ws.close(); ws = null; }
+        if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
+        if (inputAudioCtx) { inputAudioCtx.close(); inputAudioCtx = null; }
+        if (outputAudioCtx) { outputAudioCtx.close(); outputAudioCtx = null; }
+        
+        isRecording = false;
+        startBtn.classList.remove('av-recording');
+        btnText.innerText = 'Start Speaking';
+        statusText.innerText = 'Ready';
+    }
+    
+    startBtn.onclick = toggleRecording;
+  }
+  
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initVoiceGpt();
+  } else {
+    document.addEventListener('DOMContentLoaded', initVoiceGpt);
+    window.addEventListener('load', initVoiceGpt);
+  }
+})();`;
+      res.send(js);
+    } catch (err) {
+      console.error('Error serving embed.js:', err);
+      res.status(500).send('console.error("Internal Server Error serving embed.js")');
+    }
   });
 
   app.use(express.json());
@@ -82,7 +430,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
         const response = await ai.models.generateContent({
             model: "gemini-3.5-flash",
-            contents: message || "Hello",
+            contents: [{ role: 'user', parts: [{ text: message || "Hello" }] }],
             config: {
                 systemInstruction: systemPrompt,
                 tools: [{
@@ -300,321 +648,6 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
     }
   });
 
-  app.get('/embed.js', (req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const serverOrigin = `${protocol}://${host}`;
-
-    let jsFiles: string[] = [];
-    let cssFiles: string[] = [];
-    
-    if (process.env.NODE_ENV === 'production') {
-      try {
-        const html = fs.readFileSync(path.join(process.cwd(), 'dist', 'index.html'), 'utf-8');
-        const $ = cheerio.load(html);
-        $('script[type="module"]').each((_, el) => {
-           const src = $(el).attr('src');
-           if (src) jsFiles.push(src);
-        });
-        $('link[rel="stylesheet"]').each((_, el) => {
-           const href = $(el).attr('href');
-           if (href) cssFiles.push(href);
-        });
-      } catch(e) {}
-    } else {
-       jsFiles = ['/@vite/client', '/src/main.tsx'];
-    }
-
-    const js = `
-(function() {
-  function initVoiceGpt() {
-    if (!document.body) {
-      setTimeout(initVoiceGpt, 50);
-      return;
-    }
-    
-    if (document.getElementById('voicegpt-vanilla-widget')) return; // Prevent duplicate injection
-    
-    console.log("VoiceGPT widget initializing...");
-    
-    var config = window.VOICEGPT_CONFIG || {};
-    var websiteName = config.websiteName || 'Voice Agent';
-    var agentName = config.agentName || 'Agent';
-    
-    // Determine origin dynamically from the script src
-    var scripts = document.getElementsByTagName('script');
-    var origin = "";
-    for (var i = 0; i < scripts.length; i++) {
-        if (scripts[i].src && scripts[i].src.indexOf('/embed.js') !== -1) {
-            origin = new URL(scripts[i].src).origin;
-            break;
-        }
-    }
-    if (!origin) {
-        origin = "https://" + window.location.host; // fallback
-    }
-
-    // INJECT FLOATING ICON (UI)
-    var container = document.createElement('div');
-    container.id = 'voicegpt-vanilla-widget';
-    container.style.position = 'fixed';
-    container.style.bottom = '24px';
-    container.style.right = '24px';
-    container.style.zIndex = '999999';
-    container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-    document.body.appendChild(container);
-
-    // CSS
-    var style = document.createElement('style');
-    style.innerHTML = \`
-        #voicegpt-vanilla-widget * { box-sizing: border-box; }
-        .av-fab { width: 60px; height: 60px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4); border: none; transition: transform 0.2s; z-index: 999999; position: absolute; bottom: 0; right: 0; }
-        .av-fab:hover { transform: scale(1.05); }
-        .av-window { position: absolute; bottom: 80px; right: 0; width: 340px; height: 480px; background: white; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); display: none; flex-direction: column; overflow: hidden; border: 1px solid #e5e7eb; transition: opacity 0.3s; opacity: 0; transform: translateY(10px); z-index: 999999; }
-        .av-window.av-open { display: flex; opacity: 1; transform: translateY(0); }
-        .av-header { background: #1e40af; color: white; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
-        .av-header-title { font-weight: 600; font-size: 16px; margin: 0; }
-        .av-header-subtitle { font-size: 12px; opacity: 0.8; margin: 0; }
-        .av-close { background: none; border: none; color: white; cursor: pointer; font-size: 20px; opacity: 0.8; padding: 0; margin: 0; }
-        .av-close:hover { opacity: 1; }
-        .av-body { flex: 1; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #f8fafc; overflow-y: auto; }
-        .av-avatar { width: 80px; height: 80px; border-radius: 50%; background: #e0e7ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(79,70,229,0.2); }
-        .av-status { font-size: 16px; font-weight: 500; color: #334155; margin-bottom: 8px; }
-        .av-desc { font-size: 14px; color: #64748b; margin-bottom: 32px; }
-        .av-btn { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 9999px; font-weight: 600; font-size: 15px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.3); transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
-        .av-btn:hover { background: #1d4ed8; transform: translateY(-2px); }
-        .av-btn.av-recording { background: #ef4444; box-shadow: 0 4px 12px rgba(239,68,68,0.4); animation: av-pulse 2s infinite; }
-        @keyframes av-pulse { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 70% { box-shadow: 0 0 0 10px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
-        .av-link-box { margin-top: 16px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; text-align: left; width: 100%; display: none; }
-        .av-link-box a { color: #2563eb; font-weight: 500; text-decoration: none; word-break: break-all; font-size: 14px; }
-        .av-link-box a:hover { text-decoration: underline; }
-        .av-link-desc { font-size: 12px; color: #64748b; margin-top: 4px; }
-    \`;
-    document.head.appendChild(style);
-
-    // HTML
-    container.innerHTML = \`
-        <div class="av-window" id="av-window">
-            <div class="av-header">
-                <div>
-                    <h3 class="av-header-title">\` + agentName + \`</h3>
-                    <p class="av-header-subtitle">AI Assistant for \` + websiteName + \`</p>
-                </div>
-                <button class="av-close" id="av-close">✕</button>
-            </div>
-            <div class="av-body">
-                <div class="av-avatar">🤖</div>
-                <div class="av-status" id="av-status">Hi! How can I help?</div>
-                <div class="av-desc">Tap the button and start speaking.</div>
-                <button class="av-btn" id="av-start-btn">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
-                    <span id="av-btn-text">Start Speaking</span>
-                </button>
-                <div class="av-link-box" id="av-link-box">
-                    <a href="#" target="_blank" id="av-link-url">Link</a>
-                    <div class="av-link-desc" id="av-link-desc">Description</div>
-                </div>
-            </div>
-        </div>
-        <button class="av-fab" id="av-fab">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-        </button>
-    \`;
-
-    var fab = document.getElementById('av-fab');
-    var win = document.getElementById('av-window');
-    var closeBtn = document.getElementById('av-close');
-    var startBtn = document.getElementById('av-start-btn');
-    var btnText = document.getElementById('av-btn-text');
-    var statusText = document.getElementById('av-status');
-    var linkBox = document.getElementById('av-link-box');
-    var linkUrl = document.getElementById('av-link-url');
-    var linkDesc = document.getElementById('av-link-desc');
-
-    // TOGGLE INTERFACE
-    var hasGreeted = false;
-    fab.onclick = function() {
-        if (win.classList.contains('av-open')) {
-            win.classList.remove('av-open');
-            setTimeout(function() { win.style.display = 'none'; }, 300);
-        } else {
-            win.style.display = 'flex';
-            setTimeout(function() { win.classList.add('av-open'); }, 10);
-        }
-    };
-    closeBtn.onclick = function() {
-        win.classList.remove('av-open');
-        setTimeout(function() { win.style.display = 'none'; }, 300);
-    };
-
-    // VOICE AGENT FUNCTIONALITY (WebAudio + WebSockets)
-    var isRecording = false;
-    var ws = null;
-    var inputAudioCtx = null;
-    var outputAudioCtx = null;
-    var mediaStream = null;
-    var nextStartTime = 0;
-
-    function pcmToBase64(pcmData) {
-      var buffer = new ArrayBuffer(pcmData.length * 2);
-      var view = new DataView(buffer);
-      for (var i = 0; i < pcmData.length; i++) {
-        var s = Math.max(-1, Math.min(1, pcmData[i]));
-        view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-      }
-      var bytes = new Uint8Array(buffer);
-      var binary = '';
-      for (var i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      return btoa(binary);
-    }
-
-    function base64ToPcm(base64) {
-      var binary = atob(base64);
-      var buffer = new ArrayBuffer(binary.length);
-      var view = new DataView(buffer);
-      for (var i = 0; i < binary.length; i++) {
-        view.setUint8(i, binary.charCodeAt(i));
-      }
-      var int16Array = new Int16Array(buffer);
-      var float32Array = new Float32Array(int16Array.length);
-      for (var i = 0; i < int16Array.length; i++) {
-        float32Array[i] = int16Array[i] / 0x8000;
-      }
-      return float32Array;
-    }
-
-    function playAudioChunk(outputCtx, base64) {
-      var pcmMatch = base64ToPcm(base64);
-      var buffer = outputCtx.createBuffer(1, pcmMatch.length, 24000);
-      buffer.getChannelData(0).set(pcmMatch);
-      var source = outputCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(outputCtx.destination);
-      var nextStart = nextStartTime;
-      if (nextStart < outputCtx.currentTime) {
-        nextStart = outputCtx.currentTime;
-      }
-      source.start(nextStart);
-      nextStartTime = nextStart + buffer.duration;
-    }
-
-    async function toggleRecording() {
-        if (isRecording) {
-            stopRecording();
-            return;
-        }
-
-        try {
-            var latestCfg = window.VOICEGPT_CONFIG || config || {};
-            var curWebName = latestCfg.websiteName || websiteName || 'Voice Agent';
-            var curAgName = latestCfg.agentName || agentName || 'Agent';
-            var linksObj = latestCfg.websiteLinks || [];
-            var instructionsObj = latestCfg.customInstructions || "";
-            var genderObj = latestCfg.voiceGender || "female";
-            var languageObj = latestCfg.language || "English";
-            var personalityObj = latestCfg.personality || "Friendly";
-            var paramsObj = {
-                websiteName: curWebName,
-                agentName: curAgName,
-                customInstructions: instructionsObj,
-                voiceGender: genderObj,
-                language: languageObj,
-                personality: personalityObj
-            };
-            if (linksObj && linksObj.length > 0) {
-                paramsObj.websiteLinks = JSON.stringify(linksObj);
-            }
-            if (document && document.body) {
-                paramsObj.websiteContext = document.body.innerText.substring(0, 5000);
-            }
-            var urlParams = new URLSearchParams(paramsObj).toString();
-            
-            var wsProtocol = origin.startsWith('https') ? 'wss://' : 'ws://';
-            var wsOrigin = origin.replace('http://', '').replace('https://', '');
-            ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
-            
-            var AudioContext = window.AudioContext || window.webkitAudioContext;
-            inputAudioCtx = new AudioContext({ sampleRate: 16000 });
-            outputAudioCtx = new AudioContext({ sampleRate: 24000 });
-            nextStartTime = 0;
-
-            mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            var source = inputAudioCtx.createMediaStreamSource(mediaStream);
-            var processor = inputAudioCtx.createScriptProcessor(4096, 1, 1);
-            
-            processor.onaudioprocess = function(e) {
-                if (!ws || ws.readyState !== WebSocket.OPEN) return;
-                var inputData = e.inputBuffer.getChannelData(0);
-                var base64Data = pcmToBase64(inputData);
-                ws.send(JSON.stringify({ audio: base64Data }));
-            };
-            
-            source.connect(processor);
-            processor.connect(inputAudioCtx.destination);
-
-            ws.onmessage = function(event) {
-                var msg = JSON.parse(event.data);
-                if (msg.type === 'display_link') {
-                    linkBox.style.display = 'block';
-                    linkUrl.href = msg.payload.url;
-                    linkUrl.innerText = msg.payload.url;
-                    linkDesc.innerText = msg.payload.description;
-                }
-                if (msg.audio) {
-                    playAudioChunk(outputAudioCtx, msg.audio);
-                }
-                if (msg.interrupted) {
-                    nextStartTime = outputAudioCtx.currentTime;
-                }
-            };
-            
-            isRecording = true;
-            statusText.innerText = 'Listening...';
-            startBtn.classList.add('av-recording');
-            btnText.innerText = 'Stop Speaking';
-            
-            if (!hasGreeted) {
-                hasGreeted = true;
-                statusText.innerText = 'Waking up...';
-                // Note: server logic already sends greeting to model on connect
-            }
-        } catch(e) {
-            console.error("Failed to start voice:", e);
-            statusText.innerText = 'Microphone access denied.';
-        }
-    }
-
-    function stopRecording() {
-        if (ws) { ws.close(); ws = null; }
-        if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
-        if (inputAudioCtx) { inputAudioCtx.close(); inputAudioCtx = null; }
-        if (outputAudioCtx) { outputAudioCtx.close(); outputAudioCtx = null; }
-        
-        isRecording = false;
-        startBtn.classList.remove('av-recording');
-        btnText.innerText = 'Start Speaking';
-        statusText.innerText = 'Ready';
-    }
-    
-    startBtn.onclick = toggleRecording;
-  }
-  
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    initVoiceGpt();
-  } else {
-    document.addEventListener('DOMContentLoaded', initVoiceGpt);
-    window.addEventListener('load', initVoiceGpt); // Fallback
-  }
-})();`;
-    res.setHeader('Content-Type', 'application/javascript');
-    res.send(js);
-  });
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

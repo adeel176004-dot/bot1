@@ -10,6 +10,15 @@ interface SupportAgentProps {
   layout?: "fixed" | "inline";
   agentName?: string;
   customInstructions?: string;
+  config?: {
+    websiteName: string;
+    agentName: string;
+    websiteLinks: string[];
+    customInstructions: string;
+    voiceGender: string;
+    language: string;
+    personality: string;
+  };
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -21,6 +30,7 @@ export function SupportAgent({
   layout = "fixed",
   agentName: propAgentName,
   customInstructions: propCustomInstructions,
+  config,
   isOpen: propIsOpen,
   onOpenChange
 }: SupportAgentProps) {
@@ -55,7 +65,12 @@ export function SupportAgent({
       const protocol = hostUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       
       let queryParams: string;
-      if (mode === "standalone") {
+      if (config) {
+        queryParams = new URLSearchParams({
+          ...config,
+          websiteLinks: JSON.stringify(config.websiteLinks)
+        }).toString();
+      } else if (mode === "standalone") {
         if (window.VOICEGPT_CONFIG) {
            const safeConfig: any = {};
            for (const key in window.VOICEGPT_CONFIG) {

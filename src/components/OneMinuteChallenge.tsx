@@ -8,7 +8,7 @@ interface OneMinuteChallengeProps {
 
 export function OneMinuteChallenge({ onStart }: OneMinuteChallengeProps) {
   return (
-    <section className="py-20 relative overflow-hidden bg-slate-50/30">
+    <section className="py-16 md:py-24 relative overflow-hidden bg-slate-50/30">
       <div className="max-w-4xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
