@@ -1,19 +1,48 @@
 {
-  "collections": {
-    "users": {
-      "description": "User profiles",
-      "fields": {
-        "email": "string",
-        "createdAt": "timestamp"
-      }
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and subscription data",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "plan": { "type": "string", "enum": ["free", "pro", "enterprise"] },
+        "totalMessages": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "plan", "totalMessages"]
     },
-    "otps": {
-      "description": "Temporary OTP codes for email verification",
-      "fields": {
-        "email": "string",
-        "code": "string",
-        "expiresAt": "timestamp"
-      }
+    "Agent": {
+      "title": "Agent",
+      "description": "Voice agent configuration",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "config": { "type": "object" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "totalMessages": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "config"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User documents"
+    },
+    "/agents/{agentId}": {
+      "schema": "Agent",
+      "description": "Agent documents"
     }
   }
 }

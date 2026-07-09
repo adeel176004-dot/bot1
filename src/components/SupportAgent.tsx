@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { pcmToBase64, base64ToPcm } from '../lib/audioUtils';
-import { Bot, Mic, MicOff, X, Sparkles } from 'lucide-react';
+import { Bot, Mic, MicOff, X, Sparkles, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface SupportAgentProps {
   defaultOpen?: boolean;
@@ -10,6 +12,7 @@ interface SupportAgentProps {
   layout?: "fixed" | "inline";
   agentName?: string;
   customInstructions?: string;
+  userId?: string; // Add userId to track limits
   config?: {
     websiteName: string;
     agentName: string;
@@ -31,11 +34,40 @@ export function SupportAgent({
   agentName: propAgentName,
   customInstructions: propCustomInstructions,
   config,
+  userId: propUserId,
   isOpen: propIsOpen,
   onOpenChange
 }: SupportAgentProps) {
   const [localIsOpen, setLocalIsOpen] = useState(defaultOpen);
   const isOpen = propIsOpen !== undefined ? propIsOpen : localIsOpen;
+  
+  const [userStats, setUserStats] = useState({ totalMessages: 0, plan: 'free' });
+  const [isLimitReached, setIsLimitReached] = useState(false);
+
+  // Sync user stats if userId is provided
+  useEffect(() => {
+    const userId = propUserId || (mode === 'standalone' && window.VOICEGPT_CONFIG?.userId);
+    if (userId) {
+      const unsub = onSnapshot(doc(db, 'users', userId), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const stats = {
+            totalMessages: data.totalMessages || 0,
+            plan: data.plan || 'free'
+          };
+          setUserStats(stats);
+          
+          const limit = stats.plan === 'enterprise' ? Infinity : (stats.plan === 'pro' ? 10000 : 50);
+          if (stats.totalMessages >= limit) {
+            setIsLimitReached(true);
+          } else {
+            setIsLimitReached(false);
+          }
+        }
+      });
+      return () => unsub();
+    }
+  }, [propUserId, mode]);
 
   const setIsOpen = (val: boolean) => {
     if (onOpenChange) onOpenChange(val);
@@ -60,6 +92,10 @@ export function SupportAgent({
   };
 
   const startRecording = async () => {
+    if (isLimitReached) {
+      alert("Usage limit reached for this agent. Please contact the administrator.");
+      return;
+    }
     try {
       const hostUrl = (window as any).VOICEGPT_ORIGIN ? new URL((window as any).VOICEGPT_ORIGIN) : window.location;
       const protocol = hostUrl.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -138,16 +174,32 @@ export function SupportAgent({
         }
       };
 
-      ws.onmessage = (event) => {
+      let responseLogged = false;
+      ws.onmessage = async (event) => {
         const msg = JSON.parse(event.data);
         if (msg.type === 'display_link') {
            setDisplayLink(msg.payload);
         }
         if (msg.audio) {
           playAudioChunk(outputAudioCtx, msg.audio);
+          
+          // Log message to Firestore (only once per agent response)
+          const userId = propUserId || (mode === 'standalone' && window.VOICEGPT_CONFIG?.userId);
+          if (userId && !responseLogged) {
+            responseLogged = true;
+            try {
+              await updateDoc(doc(db, 'users', userId), {
+                totalMessages: increment(1),
+                updatedAt: new Date().toISOString()
+              });
+            } catch (err) {
+              console.error("Failed to log message:", err);
+            }
+          }
         }
         if (msg.interrupted) {
           nextStartTimeRef.current = outputAudioCtx.currentTime;
+          responseLogged = false;
         }
       };
       
@@ -234,7 +286,14 @@ export function SupportAgent({
         </button>
       </div>
       <div className="text-center">
-          <p className="text-slate-600 font-medium">{isRecording ? "Listening..." : "Tap to start speaking"}</p>
+          {isLimitReached ? (
+            <div className="flex flex-col items-center text-red-500 gap-2">
+              <AlertCircle className="w-6 h-6" />
+              <p className="text-xs font-bold uppercase tracking-tight">Limit Reached</p>
+            </div>
+          ) : (
+            <p className="text-slate-600 font-medium">{isRecording ? "Listening..." : "Tap to start speaking"}</p>
+          )}
       </div>
 
       <AnimatePresence>

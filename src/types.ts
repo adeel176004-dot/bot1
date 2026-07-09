@@ -14,11 +14,31 @@ export interface Plan {
   active: boolean;
 }
 
+export interface UserStats {
+  totalMessages: number;
+  totalMinutes: number;
+  activeAgents: number;
+  satisfactionRate: number;
+  dailyUsage: { date: string; messages: number; minutes: number }[];
+}
+
+export interface UserData extends UserStats {
+  uid: string;
+  email: string;
+  displayName: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  createdAt: string;
+}
+
 export interface VoiceGPTConfig {
   websiteName?: string;
   agentName?: string;
   websiteLinks?: string[];
   customInstructions?: string;
+  voiceGender?: 'male' | 'female';
+  language?: string;
+  personality?: string;
+  userId?: string;
 }
 
 declare global {

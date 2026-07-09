@@ -5,8 +5,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { pcmToBase64, base64ToPcm } from './lib/audioUtils';
-import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown, Layout, ShieldCheck, CheckCircle2, Search, Zap, Loader2, Type, ListFilter, SortAsc, RefreshCcw, Timer } from 'lucide-react';
+import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown, Layout, ShieldCheck, CheckCircle2, Search, Zap, Loader2, Type, ListFilter, SortAsc, RefreshCcw, Timer, LayoutDashboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, onSnapshot, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { SupportAgent } from './components/SupportAgent';
 import { TOP_100_LANGUAGES } from './data/languages';
 import { SEOAnalyzer, SpeedTester, SitemapGenerator, URLExtractor, FAQGenerator, BusinessNameGenerator, PrivacyPolicyGenerator, TermsGenerator, RobotsGenerator, DomainGenerator, WordCounter, ReadingTimeCalculator, CaseConverter, RemoveDuplicateLines, TextSorter, TextReverser, BlogWriter, ArticleWriter, ParagraphGenerator, EssayWriter, VoiceAIUpsell } from './components/GrowthTools';
@@ -18,11 +21,16 @@ import { FAQItem, COMMON_FAQS } from './components/FAQ';
 import { AuthModal } from './components/AuthModal';
 import { UserProfile } from './components/UserProfile';
 import { Pricing } from './components/Pricing';
+import { AdminPanel } from './components/AdminPanel';
+import { AgentAnalytics } from './components/AgentAnalytics';
+import { UserStats } from './types';
 
 type User = {
   email: string;
   name: string;
   id: string;
+  role?: string;
+  plan?: 'free' | 'pro' | 'enterprise';
 };
 
 export default function App() {
@@ -30,7 +38,12 @@ export default function App() {
     return (
       <>
         <style>{'body, html { background-color: transparent !important; }'}</style>
-        <SupportAgent defaultOpen={false} hideAskMe={false} mode="standalone" />
+        <SupportAgent 
+          defaultOpen={false} 
+          hideAskMe={false} 
+          mode="standalone" 
+          userId={window.VOICEGPT_CONFIG?.userId}
+        />
       </>
     );
   }
@@ -38,7 +51,7 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
 
   const [appMode, setAppMode] = useState<'saas' | 'agent'>('saas');
-  const [currentView, setCurrentView] = useState<'landing' | 'tools' | 'features' | 'pricing'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'tools' | 'features' | 'pricing' | 'admin' | 'analytics'>('landing');
   const [activeTool, setActiveTool] = useState<'seo' | 'speed' | 'sitemap' | 'url-extractor' | 'faq-gen' | 'name-gen' | 'privacy-gen' | 'terms-gen' | 'robots-gen' | 'domain-gen' | 'word-counter' | 'reading-time' | 'case-converter' | 'remove-duplicates' | 'text-sorter' | 'text-reverser' | 'blog-writer' | 'article-writer' | 'paragraph-gen' | 'essay-writer' | null>(null);
   const [activeCategory, setActiveCategory] = useState<'All' | 'Optimization' | 'Documentation' | 'Generative'>('All');
   const [isCreating, setIsCreating] = useState(false);
@@ -77,6 +90,13 @@ export default function App() {
   };
 
   const startRecording = async () => {
+    // Check limit first
+    const limit = user?.plan === 'enterprise' ? Infinity : (user?.plan === 'pro' ? 10000 : 50);
+    if (userStats.totalMessages >= limit) {
+      alert("Usage limit reached. Please upgrade your plan to continue using the voice agent.");
+      return;
+    }
+
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const urlParams = new URLSearchParams({
@@ -113,16 +133,31 @@ export default function App() {
         }
       };
 
-      ws.onmessage = (event) => {
+      let responseLogged = false;
+      ws.onmessage = async (event) => {
         const msg = JSON.parse(event.data);
         if (msg.type === 'display_link') {
            setDisplayLink(msg.payload);
         }
         if (msg.audio) {
           playAudioChunk(outputAudioCtx, msg.audio);
+          
+          // Log message to Firestore (only once per agent response)
+          if (user && !responseLogged) {
+            responseLogged = true;
+            try {
+              await updateDoc(doc(db, 'users', user.id), {
+                totalMessages: increment(1),
+                updatedAt: new Date().toISOString()
+              });
+            } catch (err) {
+              console.error("Failed to log message:", err);
+            }
+          }
         }
         if (msg.interrupted) {
           nextStartTimeRef.current = outputAudioCtx.currentTime;
+          responseLogged = false; // Reset for next turn
         }
       };
       
@@ -176,7 +211,57 @@ export default function App() {
     };
   }, []);
 
-  const handleAuthSuccess = (userData: { email: string; name: string }) => {
+  useEffect(() => {
+    setAuthLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Use onSnapshot for real-time updates
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const unsubDoc = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setUser(prev => ({
+              id: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              name: data.name || firebaseUser.displayName || 'User',
+              role: data.role || (firebaseUser.email === 'admin@voiceagent.com' ? 'admin' : 'user'),
+              plan: data.plan || 'free'
+            }));
+            
+            // Sync stats
+            setUserStats(prev => ({
+              ...prev,
+              totalMessages: data.totalMessages || 0,
+            }));
+          } else {
+            // New user initialization logic if needed
+            setUser({
+              id: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              name: firebaseUser.displayName || 'User',
+              role: firebaseUser.email === 'admin@voiceagent.com' ? 'admin' : 'user',
+              plan: 'free'
+            });
+          }
+        });
+
+        return () => unsubDoc();
+      } else {
+        setUser(null);
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setUser(null);
+    setCurrentView('landing');
+  };
+
+  const handleAuthSuccess = (userData: { email: string; name: string; role?: string }) => {
     setUser({
       ...userData,
       id: Math.random().toString(36).substring(7)
@@ -188,8 +273,26 @@ export default function App() {
     }
   };
 
-  const handleSelectPlan = (planId: string) => {
+  const handleSelectPlan = async (planId: string) => {
+    const planMap: Record<string, 'free' | 'pro' | 'enterprise'> = {
+      'free': 'free',
+      'pro': 'pro',
+      'premium': 'enterprise', // mapping user's premium to enterprise
+      'enterprise': 'enterprise'
+    };
+    
+    const selectedPlan = planMap[planId] || 'free';
+    
     if (user) {
+      try {
+        await updateDoc(doc(db, 'users', user.id), {
+          plan: selectedPlan,
+          updatedAt: new Date().toISOString()
+        });
+        // Note: The onSnapshot listener will update the local user state
+      } catch (err) {
+        console.error("Failed to update plan:", err);
+      }
       setIsCreating(true);
     } else {
       setPendingAction('create_agent');
@@ -199,10 +302,30 @@ export default function App() {
   };
 
   const handleDashboard = () => {
-    // For now, we can just switch to tools or show a notification
-    setCurrentView('tools');
+    setCurrentView('analytics');
     setActiveTool(null);
   };
+
+  const [userStats, setUserStats] = useState<UserStats>({
+    totalMessages: 0,
+    totalMinutes: 0,
+    activeAgents: 0,
+    satisfactionRate: 0,
+    dailyUsage: []
+  });
+
+  useEffect(() => {
+    if (user) {
+      // Initialize with zeroed stats or fetch from DB (currently local state)
+      setUserStats({
+        totalMessages: 0,
+        totalMinutes: 0,
+        activeAgents: 1,
+        satisfactionRate: 0,
+        dailyUsage: []
+      });
+    }
+  }, [user]);
 
   if (appMode === 'saas') {
     if (currentView === 'tools') {
@@ -529,8 +652,9 @@ export default function App() {
                   {user ? (
                     <UserProfile 
                       user={user} 
-                      onLogout={() => setUser(null)} 
-                      onDashboard={handleDashboard} 
+                      onLogout={handleLogout} 
+                      onDashboard={handleDashboard}
+                      onAdminPanel={() => setCurrentView("admin")} 
                     />
                   ) : (
                     <div className="flex items-center space-x-4">
@@ -555,6 +679,7 @@ export default function App() {
           <main className="flex-1">
              {currentView === 'features' && <FeaturesPage />}
              {currentView === 'pricing' && <Pricing onSelectPlan={handleSelectPlan} />}
+             {currentView === 'admin' && user?.role === 'admin' && <AdminPanel />}
              {currentView === 'tools' && renderToolContent()}
           </main>
 
@@ -600,8 +725,9 @@ export default function App() {
                   {user ? (
                     <UserProfile 
                       user={user} 
-                      onLogout={() => setUser(null)} 
-                      onDashboard={handleDashboard} 
+                      onLogout={handleLogout} 
+                      onDashboard={handleDashboard}
+                      onAdminPanel={() => setCurrentView("admin")} 
                     />
                   ) : (
                     <div className="flex items-center space-x-4">
@@ -630,7 +756,7 @@ export default function App() {
                  <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-100 blur-[120px] opacity-60 pointer-events-none" />
                  <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-100 blur-[100px] opacity-60 pointer-events-none" />
                  
-                 <div className="max-w-5xl w-full z-10 text-center space-y-8 px-6 py-16 md:py-24">
+                 <div className="max-w-5xl w-full z-10 text-center space-y-6 px-6 py-10 md:py-16">
                  <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -660,7 +786,7 @@ export default function App() {
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
-                    className="py-12"
+                    className="py-4"
                  >
                     <InteractiveWaveform />
                  </motion.div>
@@ -689,7 +815,7 @@ export default function App() {
 
 
              {/* Feature Cards Section */}
-             <div className="max-w-7xl w-full mx-auto py-16 md:py-24 z-10 px-6">
+             <div className="max-w-7xl w-full mx-auto py-10 md:py-16 z-10 px-6">
                 <div className="text-center mb-16">
                    <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 mb-4">Grow your business automatically</h2>
                    <p className="text-slate-500 text-lg md:text-xl font-medium max-w-3xl mx-auto">Our AI handles the interactions, allowing you to focus on growth.</p>
@@ -755,7 +881,7 @@ export default function App() {
              </div>
 
              {/* Before & After Comparison Section */}
-             <div className="max-w-5xl w-full mx-auto py-16 md:py-24 px-6 z-10">
+             <div className="max-w-5xl w-full mx-auto py-10 md:py-16 px-6 z-10">
                 <div className="text-center max-w-3xl mx-auto mb-16">
                    <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
                       Imagine what you could do if you had an <span className="underline decoration-dotted underline-offset-8 decoration-slate-400">expert voice AI answering calls 24/7</span>
@@ -836,7 +962,7 @@ export default function App() {
 
 
              {/* How it Works Section */}
-             <div className="max-w-6xl w-full mx-auto py-16 md:py-24 px-6 z-10">
+             <div className="max-w-6xl w-full mx-auto py-10 md:py-16 px-6 z-10">
                 <div className="text-center mb-16">
                    <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
                       You're <span className="text-blue-600">three easy steps</span> away from your own personalized AI voice agent
@@ -901,7 +1027,7 @@ export default function App() {
              </div>
 
              {/* FAQ Section */}
-             <div className="max-w-4xl w-full mx-auto py-16 md:py-24 px-6 z-10 relative">
+             <div className="max-w-4xl w-full mx-auto py-10 md:py-16 px-6 z-10 relative">
                 <div className="text-center mb-16">
                    <h3 className="text-blue-600 font-bold tracking-widest text-xs uppercase mb-3">
                       Knowledge Base
@@ -950,6 +1076,44 @@ export default function App() {
              )}
              {currentView === 'features' && <FeaturesPage />}
              {currentView === 'pricing' && <Pricing onSelectPlan={handleSelectPlan} />}
+             {currentView === 'admin' && user?.role === 'admin' && <AdminPanel />}
+             {currentView === 'analytics' && (
+                <div className="max-w-7xl w-full mx-auto px-6 py-10">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div className="flex items-start space-x-4">
+                      <div>
+                        <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Performance Overview</h2>
+                        <p className="text-slate-500 mt-1 font-medium">Track your agents' performance and message volume.</p>
+                      </div>
+                      <span className={`mt-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        user?.plan === 'enterprise' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm shadow-indigo-100' :
+                        user?.plan === 'pro' ? 'bg-purple-50 text-purple-600 border-purple-100 shadow-sm shadow-purple-100' :
+                        'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}>
+                        {user?.plan || 'Free'} Plan
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <button className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm">
+                        Download Report
+                      </button>
+                      <button 
+                        onClick={() => setIsCreating(true)}
+                        className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-600/20"
+                      >
+                        Add New Agent
+                      </button>
+                    </div>
+                  </div>
+                  <AgentAnalytics 
+                    stats={userStats} 
+                    config={saasConfig} 
+                    plan={user?.plan || 'free'}
+                    onUpdateConfig={(newConfig) => setSaasConfig(newConfig)}
+                    onTest={() => setAppMode('agent')}
+                  />
+                </div>
+             )}
           </main>
 
           <footer className="border-t border-slate-200/60 bg-white py-8 z-10 relative">
@@ -964,7 +1128,7 @@ export default function App() {
                 </div>
              </div>
           </footer>
-          <SupportAgent isOpen={showDemo} onOpenChange={setShowDemo} />
+          <SupportAgent isOpen={showDemo} onOpenChange={setShowDemo} userId={user?.id} />
           <AuthModal 
             isOpen={showAuth} 
             onClose={() => setShowAuth(false)} 
@@ -986,8 +1150,9 @@ export default function App() {
                   {user ? (
                     <UserProfile 
                       user={user} 
-                      onLogout={() => setUser(null)} 
-                      onDashboard={handleDashboard} 
+                      onLogout={handleLogout} 
+                      onDashboard={handleDashboard}
+                      onAdminPanel={() => setCurrentView("admin")} 
                     />
                   ) : (
                     <div className="flex items-center space-x-4">
@@ -1009,7 +1174,7 @@ export default function App() {
            </div>
         </header>
 
-        <main className="flex-1 flex flex-col items-center justify-center py-12 md:py-20 px-6 relative overflow-hidden">
+        <main className="flex-1 flex flex-col items-center justify-center py-10 md:py-16 px-6 relative overflow-hidden">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-100 blur-[100px] opacity-60 pointer-events-none" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-100 blur-[100px] opacity-60 pointer-events-none" />
           
@@ -1195,7 +1360,14 @@ export default function App() {
       </div>
 
       <div className="absolute top-6 right-6 z-20 flex space-x-3">
-         <button onClick={() => setShowEmbed(true)} className="text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
+         <button 
+            onClick={() => { setAppMode('saas'); setCurrentView('analytics'); setIsCreating(false); stopRecording(); }} 
+            className="text-sm font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 shadow-sm"
+         >
+            <LayoutDashboard className="w-4 h-4" />
+            <span>Go to Dashboard</span>
+         </button>
+         <button onClick={() => setShowEmbed(true)} className="text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 shadow-sm">
             <Code className="w-4 h-4" />
             <span>Embed on your website</span>
          </button>
@@ -1234,7 +1406,8 @@ export default function App() {
     customInstructions: ${JSON.stringify(saasConfig.customInstructions)},
     voiceGender: ${JSON.stringify(saasConfig.voiceGender)},
     language: ${JSON.stringify(saasConfig.language)},
-    personality: ${JSON.stringify(saasConfig.personality)}
+    personality: ${JSON.stringify(saasConfig.personality)},
+    userId: ${JSON.stringify(user?.id)}
   };
   (function() {
     var s = document.createElement('script');
@@ -1247,7 +1420,7 @@ export default function App() {
                      </pre>
                      <button 
                         onClick={() => {
-                            window.navigator.clipboard.writeText(`<script type='text/javascript'>\n//<![CDATA[\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)}\n  };\n  (function() {\n    var s = document.createElement('script');\n    s.type = 'text/javascript';\n    s.src = '${window.location.origin}/vagent.js';\n    document.body.appendChild(s);\n  })();\n//]]>\n</script>`);
+                            window.navigator.clipboard.writeText(`<script type='text/javascript'>\n//<![CDATA[\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)},\n    userId: ${JSON.stringify(user?.id)}\n  };\n  (function() {\n    var s = document.createElement('script');\n    s.type = 'text/javascript';\n    s.src = '${window.location.origin}/vagent.js';\n    document.body.appendChild(s);\n  })();\n//]]>\n</script>`);
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                         }}
@@ -1406,7 +1579,7 @@ export default function App() {
                   </motion.div>
               )}
           </AnimatePresence>
-          <SupportAgent config={saasConfig} />
+          <SupportAgent config={saasConfig} userId={user?.id} />
           <AuthModal 
             isOpen={showAuth} 
             onClose={() => setShowAuth(false)} 

@@ -6,12 +6,14 @@ interface UserProfileProps {
   user: {
     name: string;
     email: string;
+    role?: string;
   };
   onLogout: () => void;
   onDashboard: () => void;
+  onAdminPanel?: () => void;
 }
 
-export function UserProfile({ user, onLogout, onDashboard }: UserProfileProps) {
+export function UserProfile({ user, onLogout, onDashboard, onAdminPanel }: UserProfileProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +62,18 @@ export function UserProfile({ user, onLogout, onDashboard }: UserProfileProps) {
             </div>
 
             <div className="p-2">
+              {user.role === 'admin' && (
+                <button
+                  onClick={() => {
+                    if (onAdminPanel) onAdminPanel();
+                    setIsOpen(false);
+                  }}
+                  className="w-full flex items-center space-x-3 px-3 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-colors font-medium"
+                >
+                  <User className="w-4 h-4" />
+                  <span>Admin Panel</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   onDashboard();
