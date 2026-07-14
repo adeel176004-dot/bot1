@@ -106,7 +106,8 @@ export default function App() {
         customInstructions: saasConfig.customInstructions || '',
         voiceGender: saasConfig.voiceGender,
         language: saasConfig.language,
-        personality: saasConfig.personality
+        personality: saasConfig.personality,
+        userId: user?.id || ''
       }).toString();
       const ws = new WebSocket(`${protocol}//${window.location.host}/live?${urlParams}`);
       wsRef.current = ws;
@@ -213,28 +214,32 @@ export default function App() {
 
   useEffect(() => {
     setAuthLoading(true);
+    let unsubDoc: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (unsubDoc) {
+        unsubDoc();
+        unsubDoc = null;
+      }
+
       if (firebaseUser) {
-        // Use onSnapshot for real-time updates
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const unsubDoc = onSnapshot(userDocRef, (docSnap) => {
+        unsubDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            setUser(prev => ({
+            setUser({
               id: firebaseUser.uid,
               email: firebaseUser.email || '',
               name: data.name || firebaseUser.displayName || 'User',
               role: data.role || (firebaseUser.email === 'admin@voiceagent.com' ? 'admin' : 'user'),
               plan: data.plan || 'free'
-            }));
+            });
             
-            // Sync stats
             setUserStats(prev => ({
               ...prev,
               totalMessages: data.totalMessages || 0,
             }));
           } else {
-            // New user initialization logic if needed
             setUser({
               id: firebaseUser.uid,
               email: firebaseUser.email || '',
@@ -243,16 +248,21 @@ export default function App() {
               plan: 'free'
             });
           }
+          setAuthLoading(false);
+        }, (error) => {
+          console.error("User doc snapshot error:", error);
+          setAuthLoading(false);
         });
-
-        return () => unsubDoc();
       } else {
         setUser(null);
+        setAuthLoading(false);
       }
-      setAuthLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (unsubDoc) unsubDoc();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -261,11 +271,8 @@ export default function App() {
     setCurrentView('landing');
   };
 
-  const handleAuthSuccess = (userData: { email: string; name: string; role?: string }) => {
-    setUser({
-      ...userData,
-      id: Math.random().toString(36).substring(7)
-    });
+  const handleAuthSuccess = (userData: { id: string; email: string; name: string; role?: string }) => {
+    setUser(userData as User);
     setShowAuth(false);
     if (pendingAction === 'create_agent') {
       setIsCreating(true);
@@ -274,10 +281,12 @@ export default function App() {
   };
 
   const handleSelectPlan = async (planId: string) => {
-    const planMap: Record<string, 'free' | 'pro' | 'enterprise'> = {
+    const planMap: Record<string, string> = {
       'free': 'free',
-      'pro': 'pro',
-      'premium': 'enterprise', // mapping user's premium to enterprise
+      'basic': 'basic',
+      'pro': 'professional',
+      'premium': 'professional',
+      'professional': 'professional',
       'enterprise': 'enterprise'
     };
     
@@ -298,6 +307,20 @@ export default function App() {
       setPendingAction('create_agent');
       setAuthMode('signup');
       setShowAuth(true);
+    }
+  };
+
+  const getMaxLinks = (plan?: string) => {
+    switch (plan) {
+      case 'basic': return 500;
+      case 'pro':
+      case 'professional':
+      case 'enterprise':
+      case 'premium':
+        return 700;
+      case 'free':
+      default:
+        return 3;
     }
   };
 
@@ -895,7 +918,7 @@ export default function App() {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ duration: 0.5, ease: "easeOut" }}
-                      className="bg-white rounded-2xl p-7 md:p-10 ring-1 ring-slate-200 shadow-sm flex flex-col justify-between hover:-translate-y-2 hover:shadow-xl transition-all duration-300"
+                      className="bg-white rounded-2xl p-8 md:p-10 ring-1 ring-slate-200 shadow-sm flex flex-col justify-between hover:-translate-y-2 hover:shadow-xl transition-all duration-300"
                    >
                       <div>
                          <div className="flex items-center space-x-2 text-slate-500 font-medium text-sm mb-6">
@@ -929,7 +952,7 @@ export default function App() {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-                      className="bg-blue-600 rounded-2xl p-7 md:p-10 shadow-lg shadow-blue-600/15 flex flex-col justify-between text-left relative overflow-hidden text-white hover:-translate-y-2 hover:shadow-xl transition-all duration-300"
+                      className="bg-blue-600 rounded-2xl p-8 md:p-10 shadow-lg shadow-blue-600/15 flex flex-col justify-between text-left relative overflow-hidden text-white hover:-translate-y-2 hover:shadow-xl transition-all duration-300"
                    >
                       <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 rounded-full bg-white/10 blur-2xl pointer-events-none" />
                       <div className="relative z-10">
@@ -1078,39 +1101,19 @@ export default function App() {
              {currentView === 'pricing' && <Pricing onSelectPlan={handleSelectPlan} />}
              {currentView === 'admin' && user?.role === 'admin' && <AdminPanel />}
              {currentView === 'analytics' && (
-                <div className="max-w-7xl w-full mx-auto px-6 py-10">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div className="flex items-start space-x-4">
-                      <div>
-                        <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Performance Overview</h2>
-                        <p className="text-slate-500 mt-1 font-medium">Track your agents' performance and message volume.</p>
-                      </div>
-                      <span className={`mt-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                        user?.plan === 'enterprise' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm shadow-indigo-100' :
-                        user?.plan === 'pro' ? 'bg-purple-50 text-purple-600 border-purple-100 shadow-sm shadow-purple-100' :
-                        'bg-slate-50 text-slate-500 border-slate-200'
-                      }`}>
-                        {user?.plan || 'Free'} Plan
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <button className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm">
-                        Download Report
-                      </button>
-                      <button 
-                        onClick={() => setIsCreating(true)}
-                        className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-600/20"
-                      >
-                        Add New Agent
-                      </button>
-                    </div>
-                  </div>
+                <div className="w-full flex-1 flex flex-col">
                   <AgentAnalytics 
                     stats={userStats} 
                     config={saasConfig} 
                     plan={user?.plan || 'free'}
+                    userId={user?.id}
+                    onUpgrade={() => {
+                      setCurrentView('pricing');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                     onUpdateConfig={(newConfig) => setSaasConfig(newConfig)}
                     onTest={() => setAppMode('agent')}
+                    onAddNewAgent={() => setIsCreating(true)}
                   />
                 </div>
              )}
@@ -1189,27 +1192,27 @@ export default function App() {
 
             <div className="space-y-4">
                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Website Name</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Website Name</label>
                   <input 
                      type="text" 
                      value={saasConfig.websiteName}
                      onChange={e => setSaasConfig({...saasConfig, websiteName: e.target.value})}
                      placeholder="e.g. Acme Corp"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
                   />
                </div>
                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Agent Name</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Agent Name</label>
                   <input 
                      type="text" 
                      value={saasConfig.agentName}
                      onChange={e => setSaasConfig({...saasConfig, agentName: e.target.value})}
                      placeholder="e.g. Sarah"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
                   />
                </div>
                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Website Pages (Context for AI)</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Website Pages (Context for AI)</label>
                   {saasConfig.websiteLinks.map((link, idx) => (
                       <div key={idx} className="flex space-x-2 mb-2">
                           <input 
@@ -1221,7 +1224,7 @@ export default function App() {
                                   setSaasConfig({...saasConfig, websiteLinks: newLinks});
                               }}
                               placeholder="e.g. https://example.com/about"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                              className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
                           />
                           {saasConfig.websiteLinks.length > 1 && (
                               <button 
@@ -1238,13 +1241,14 @@ export default function App() {
                   ))}
                   <button 
                       onClick={() => setSaasConfig({...saasConfig, websiteLinks: [...saasConfig.websiteLinks, '']})}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-700 mt-1"
+                      disabled={saasConfig.websiteLinks.length >= getMaxLinks(user?.plan)}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 mt-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                      + Add another page link
+                      + Add another page link (Max {getMaxLinks(user?.plan)})
                   </button>
                </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Voice Gender</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Voice Gender</label>
                   <div className="grid grid-cols-2 gap-4">
                     <button 
                       onClick={() => setSaasConfig({...saasConfig, voiceGender: 'female'})}
@@ -1276,7 +1280,7 @@ export default function App() {
                </div>
 
                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Primary Language</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Primary Language</label>
                   <select 
                     value={saasConfig.language}
                     onChange={(e) => setSaasConfig({...saasConfig, language: e.target.value})}
@@ -1289,7 +1293,7 @@ export default function App() {
                </div>
 
                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Agent Personality</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Agent Personality</label>
                   <select 
                     value={saasConfig.personality}
                     onChange={(e) => setSaasConfig({...saasConfig, personality: e.target.value})}
@@ -1302,20 +1306,28 @@ export default function App() {
                </div>
 
                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Custom Instructions (Optional)</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Custom Instructions (Optional)</label>
                   <textarea 
                      value={saasConfig.customInstructions}
                      onChange={e => setSaasConfig({...saasConfig, customInstructions: e.target.value})}
                      placeholder="e.g. Be very helpful and focus on pushing our premium plans."
                      rows={3}
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
+                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed resize-none"
                   />
                </div>
             </div>
 
             <div className="mt-8 space-y-3">
               <button 
-                 onClick={() => setAppMode('agent')}
+                 onClick={() => {
+                   const maxLinks = getMaxLinks(user?.plan);
+                   const cleanedLinks = saasConfig.websiteLinks.filter(l => l.trim() !== '').slice(0, maxLinks);
+                   setSaasConfig({ 
+                     ...saasConfig, 
+                     websiteLinks: cleanedLinks.length > 0 ? cleanedLinks : [''] 
+                   });
+                   setAppMode('agent');
+                 }}
                  disabled={!saasConfig.websiteName || !saasConfig.agentName || saasConfig.websiteLinks.every(l => !l.trim())}
                  className="w-full bg-blue-500 text-white font-medium py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
               >

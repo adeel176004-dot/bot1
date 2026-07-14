@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+const fs = require('fs');
+
+const code = `import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { auth, db } from '../firebase';
@@ -166,3 +168,6 @@ export function AuthModal({ isOpen, onClose, onSuccess, initialMode = 'signup' }
     </AnimatePresence>
   );
 }
+`;
+
+fs.writeFileSync('src/components/AuthModal.tsx', code);

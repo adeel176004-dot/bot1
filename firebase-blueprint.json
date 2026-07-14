@@ -15,6 +15,17 @@
       },
       "required": ["email", "plan", "totalMessages"]
     },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Log of a voice agent interaction",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "transcript": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "transcript", "createdAt"]
+    },
     "Agent": {
       "title": "Agent",
       "description": "Voice agent configuration",
@@ -43,6 +54,10 @@
     "/agents/{agentId}": {
       "schema": "Agent",
       "description": "Agent documents"
+    },
+    "/users/{userId}/conversations/{convId}": {
+      "schema": "Conversation",
+      "description": "Conversation logs for a user"
     }
   }
 }

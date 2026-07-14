@@ -9,7 +9,7 @@ import * as http from 'http';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin (moved inside startServer)
@@ -60,6 +60,45 @@ async function startServer() {
     res.removeHeader('X-Frame-Options'); // Allow iframe embedding
     res.setHeader('Content-Security-Policy', "frame-ancestors *");
     next();
+  });
+
+  app.get('/api/usage-status/:userId', async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const userDoc = await adminDb.collection('users').doc(userId).get();
+      if (!userDoc.exists) {
+        return res.json({ allowed: true, totalMessages: 0, plan: 'free', limit: 50 });
+      }
+      const data = userDoc.data()!;
+      const totalMessages = data.totalMessages || 0;
+      const plan = data.plan || 'free';
+      const limit = plan === 'enterprise' ? Infinity : (plan === 'pro' ? 10000 : 50);
+      res.json({
+        allowed: totalMessages < limit,
+        totalMessages,
+        limit,
+        plan
+      });
+    } catch (err) {
+      console.error('[SERVER] Usage status error:', err);
+      res.status(500).json({ error: 'Failed to fetch usage status' });
+    }
+  });
+
+  app.post('/api/log-message', async (req, res) => {
+    try {
+      const { userId } = req.body;
+      if (!userId) return res.status(400).send('Missing userId');
+      
+      await adminDb.collection('users').doc(userId).update({
+        totalMessages: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      res.json({ success: true });
+    } catch (err) {
+      console.error('[SERVER] Log message error:', err);
+      res.status(500).json({ error: 'Failed to log message' });
+    }
   });
 
   app.get('/vagent.js', (req, res) => {
@@ -234,11 +273,34 @@ async function startServer() {
     };
 
     var isRecording = false;
+    var isLimitReached = false;
     var ws = null;
     var inputAudioCtx = null;
     var outputAudioCtx = null;
     var mediaStream = null;
     var nextStartTime = 0;
+
+    async function checkUsage() {
+      var latestCfg = window.VOICEGPT_CONFIG || config || {};
+      var userId = latestCfg.userId;
+      if (!userId) return;
+      
+      try {
+        var response = await fetch(origin + '/api/usage-status/' + userId);
+        var data = await response.json();
+        if (data.allowed === false) {
+          isLimitReached = true;
+          statusText.innerText = 'Usage limit reached';
+          statusText.style.color = '#ef4444';
+          startBtn.style.opacity = '0.5';
+          startBtn.style.cursor = 'not-allowed';
+          btnText.innerText = 'Limit Reached';
+        }
+      } catch (e) { log("Error checking usage:", e); }
+    }
+    
+    checkUsage();
+    setInterval(checkUsage, 30000); // Check every 30s
 
     function pcmToBase64(pcmData) {
       var buffer = new ArrayBuffer(pcmData.length * 2);
@@ -287,6 +349,10 @@ async function startServer() {
     }
 
     async function toggleRecording() {
+        if (isLimitReached) {
+            alert("Usage limit reached. Please contact the administrator.");
+            return;
+        }
         if (isRecording) {
             stopRecording();
             return;
@@ -301,13 +367,15 @@ async function startServer() {
             var genderObj = latestCfg.voiceGender || "female";
             var languageObj = latestCfg.language || "English";
             var personalityObj = latestCfg.personality || "Friendly";
+            var userIdObj = latestCfg.userId || "";
             var paramsObj = {
                 websiteName: curWebName,
                 agentName: curAgName,
                 customInstructions: instructionsObj,
                 voiceGender: genderObj,
                 language: languageObj,
-                personality: personalityObj
+                personality: personalityObj,
+                userId: userIdObj
             };
             if (linksObj && linksObj.length > 0) {
                 paramsObj.websiteLinks = JSON.stringify(linksObj);
@@ -341,6 +409,7 @@ async function startServer() {
             source.connect(processor);
             processor.connect(inputAudioCtx.destination);
 
+            var responseLogged = false;
             ws.onmessage = function(event) {
                 var msg = JSON.parse(event.data);
                 if (msg.type === 'display_link') {
@@ -351,9 +420,22 @@ async function startServer() {
                 }
                 if (msg.audio) {
                     playAudioChunk(outputAudioCtx, msg.audio);
+                    
+                    if (!responseLogged) {
+                        responseLogged = true;
+                        var userId = (window.VOICEGPT_CONFIG || config || {}).userId;
+                        if (userId) {
+                            fetch(origin + '/api/log-message', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: userId })
+                            }).catch(function(e) { log("Error logging message:", e); });
+                        }
+                    }
                 }
                 if (msg.interrupted) {
                     nextStartTime = outputAudioCtx.currentTime;
+                    responseLogged = false;
                 }
             };
             
@@ -506,6 +588,10 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
       const voiceGender = url.searchParams.get('voiceGender') || 'female';
       const language = url.searchParams.get('language') || 'English';
       const personality = url.searchParams.get('personality') || 'Friendly';
+      const userId = url.searchParams.get('userId');
+
+      let transcript = '';
+      const startTime = Date.now();
 
       let clientContext = url.searchParams.get('websiteContext') || '';
       let fetchedContext = '';
@@ -618,6 +704,19 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
             if (audio) {
               clientWs.send(JSON.stringify({ audio }));
             }
+
+            // Capture text transcript from model
+            const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
+            if (text) {
+              transcript += `Agent: ${text}\n`;
+            }
+
+            // Capture user transcript if provided by the API
+            const userText = (message.serverContent as any)?.userContent?.parts?.[0]?.text || (message.serverContent as any)?.transcription?.text;
+            if (userText) {
+              transcript += `User: ${userText}\n`;
+            }
+
             if (message.serverContent?.interrupted) {
               clientWs.send(JSON.stringify({ interrupted: true }));
             }
@@ -640,6 +739,25 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
            }
         } catch (e) {
           console.error("Error parsing message from client", e);
+        }
+      });
+
+      clientWs.on("close", async () => {
+        console.log(`Connection closed for user: ${userId}`);
+        if (session) session.close();
+        
+        // Save transcript if there's content and a userId
+        if (userId && transcript.trim()) {
+          try {
+            await adminDb.collection('conversations').add({
+              userId,
+              transcript,
+              createdAt: FieldValue.serverTimestamp()
+            });
+            console.log(`[FIREBASE] Transcript saved for user ${userId}`);
+          } catch (err) {
+            console.error('[FIREBASE] Error saving transcript:', err);
+          }
         }
       });
       

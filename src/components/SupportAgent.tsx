@@ -102,9 +102,11 @@ export function SupportAgent({
       
       let queryParams: string;
       if (config) {
+        const userId = propUserId || (mode === 'standalone' && window.VOICEGPT_CONFIG?.userId);
         queryParams = new URLSearchParams({
           ...config,
-          websiteLinks: JSON.stringify(config.websiteLinks)
+          websiteLinks: JSON.stringify(config.websiteLinks),
+          userId: userId || ''
         }).toString();
       } else if (mode === "standalone") {
         if (window.VOICEGPT_CONFIG) {
@@ -141,11 +143,13 @@ export function SupportAgent({
           - Features: https://voiceagentbuilder.com/features
         `.trim();
 
+        const userId = propUserId;
         queryParams = new URLSearchParams({
           websiteName: 'VoiceAgent Builder',
           agentName: propAgentName || 'Support Bot',
           websiteLinks: '[]',
-          customInstructions: customInstructions
+          customInstructions: customInstructions,
+          userId: userId || ''
         }).toString();
       }
 

@@ -18,7 +18,7 @@ service cloud.firestore {
     match /users/{userId} {
       function isValidUser(data) {
         return data.email is string && data.email.size() <= 200
-          && data.plan in ['free', 'pro', 'enterprise']
+          && data.plan in ['free', 'basic', 'pro', 'professional', 'premium', 'enterprise']
           && data.totalMessages is number;
       }
 
@@ -44,6 +44,12 @@ service cloud.firestore {
         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'config', 'stats', 'updatedAt'])
       );
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // --- Conversations Collection ---
+    match /conversations/{convId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
     }
   }
 }
