@@ -172,6 +172,9 @@ async function startServer() {
     } catch(e) { log("Error detecting origin:", e); }
 
     if (!origin || origin === "null") origin = window.location.origin;
+    // Strip trailing slash
+    if (origin.endsWith('/')) origin = origin.slice(0, -1);
+    
     window.VOICEGPT_ORIGIN = origin;
     log("Final origin being used:", origin);
     
@@ -288,10 +291,14 @@ async function startServer() {
     async function checkUsage() {
       var latestCfg = window.VOICEGPT_CONFIG || config || {};
       var userId = latestCfg.userId;
-      if (!userId) return;
+      if (!userId) {
+        log("No userId found for usage check");
+        return;
+      }
       
       try {
         var response = await fetch(origin + '/api/usage-status/' + userId);
+        if (!response.ok) throw new Error("HTTP error " + response.status);
         var data = await response.json();
         if (data.allowed === false) {
           isLimitReached = true;
@@ -338,11 +345,11 @@ async function startServer() {
     }
 
     function playAudioChunk(outputCtx, base64) {
+      if (!outputCtx) return;
       var pcmMatch = base64ToPcm(base64);
       var buffer = outputCtx.createBuffer(1, pcmMatch.length, 24000);
       buffer.getChannelData(0).set(pcmMatch);
       var source = outputCtx.createBufferSource();
-      buffer.getChannelData(0).set(pcmMatch);
       source.buffer = buffer;
       source.connect(outputCtx.destination);
       var nextStart = nextStartTime;
@@ -362,6 +369,9 @@ async function startServer() {
             stopRecording();
             return;
         }
+
+        log("Starting connection...");
+        statusText.innerText = 'Connecting...';
 
         try {
             var latestCfg = window.VOICEGPT_CONFIG || config || {};
@@ -392,14 +402,22 @@ async function startServer() {
             
             var wsProtocol = origin.startsWith('https') ? 'wss://' : 'ws://';
             var wsOrigin = origin.replace('http://', '').replace('https://', '');
+            if (wsOrigin.startsWith('//')) wsOrigin = wsOrigin.substring(2);
+            
+            log("WebSocket URL:", wsProtocol + wsOrigin + '/live?' + urlParams);
             ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
             
             var AudioContext = window.AudioContext || window.webkitAudioContext;
             inputAudioCtx = new AudioContext({ sampleRate: 16000 });
             outputAudioCtx = new AudioContext({ sampleRate: 24000 });
+            
+            await inputAudioCtx.resume();
+            await outputAudioCtx.resume();
+            
             nextStartTime = 0;
 
             mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            log("Microphone access granted");
             
             var source = inputAudioCtx.createMediaStreamSource(mediaStream);
             var processor = inputAudioCtx.createScriptProcessor(4096, 1, 1);
@@ -415,60 +433,90 @@ async function startServer() {
             processor.connect(inputAudioCtx.destination);
 
             var responseLogged = false;
-            ws.onmessage = function(event) {
-                var msg = JSON.parse(event.data);
-                if (msg.type === 'display_link') {
-                    linkBox.style.display = 'block';
-                    linkUrl.href = msg.payload.url;
-                    linkUrl.innerText = msg.payload.url;
-                    linkDesc.innerText = msg.payload.description;
-                }
-                if (msg.audio) {
-                    playAudioChunk(outputAudioCtx, msg.audio);
-                    
-                    if (!responseLogged) {
-                        responseLogged = true;
-                        var userId = (window.VOICEGPT_CONFIG || config || {}).userId;
-                        if (userId) {
-                            fetch(origin + '/api/log-message', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ userId: userId })
-                            }).catch(function(e) { log("Error logging message:", e); });
-                        }
-                    }
-                }
-                if (msg.interrupted) {
-                    nextStartTime = outputAudioCtx.currentTime;
-                    responseLogged = false;
-                }
+            ws.onopen = function() {
+              log("WebSocket connection established");
+              isRecording = true;
+              statusText.innerText = 'Listening...';
+              startBtn.classList.add('av-recording');
+              btnText.innerText = 'Stop Speaking';
             };
             
-            isRecording = true;
-            statusText.innerText = 'Listening...';
-            startBtn.classList.add('av-recording');
-            btnText.innerText = 'Stop Speaking';
+            ws.onerror = function(e) {
+              log("WebSocket error:", e);
+              statusText.innerText = 'Connection error.';
+              stopRecording();
+            };
             
-            if (!hasGreeted) {
-                hasGreeted = true;
-                statusText.innerText = 'Waking up...';
-            }
+            ws.onclose = function() {
+              log("WebSocket closed");
+              if (isRecording) {
+                statusText.innerText = 'Connection lost.';
+                stopRecording();
+              }
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    var msg = JSON.parse(event.data);
+                    if (msg.type === 'display_link') {
+                        linkBox.style.display = 'block';
+                        linkUrl.href = msg.payload.url;
+                        linkUrl.innerText = msg.payload.url;
+                        linkDesc.innerText = msg.payload.description;
+                    }
+                    if (msg.audio) {
+                        playAudioChunk(outputAudioCtx, msg.audio);
+                        
+                        if (!responseLogged) {
+                            responseLogged = true;
+                            var userId = (window.VOICEGPT_CONFIG || config || {}).userId;
+                            if (userId) {
+                                fetch(origin + '/api/log-message', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userId: userId })
+                                }).catch(function(e) { log("Error logging message:", e); });
+                            }
+                        }
+                    }
+                    if (msg.interrupted) {
+                        nextStartTime = outputAudioCtx.currentTime;
+                        responseLogged = false;
+                    }
+                } catch(e) { log("Error parsing message:", e); }
+            };
+            
         } catch(e) {
-            console.error("Failed to start voice:", e);
+            log("Failed to start voice:", e);
             statusText.innerText = 'Microphone access denied.';
         }
     }
 
     function stopRecording() {
-        if (ws) { ws.close(); ws = null; }
-        if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
-        if (inputAudioCtx) { inputAudioCtx.close(); inputAudioCtx = null; }
-        if (outputAudioCtx) { outputAudioCtx.close(); outputAudioCtx = null; }
+        log("Stopping recording...");
+        if (ws) { 
+          try { ws.close(); } catch(e) {}
+          ws = null; 
+        }
+        if (mediaStream) { 
+          try { mediaStream.getTracks().forEach(function(t) { t.stop(); }); } catch(e) {}
+          mediaStream = null; 
+        }
+        if (inputAudioCtx) { 
+          try { inputAudioCtx.close(); } catch(e) {}
+          inputAudioCtx = null; 
+        }
+        if (outputAudioCtx) { 
+          try { outputAudioCtx.close(); } catch(e) {}
+          outputAudioCtx = null; 
+        }
         
         isRecording = false;
         startBtn.classList.remove('av-recording');
         btnText.innerText = 'Start Speaking';
-        statusText.innerText = 'Ready';
+        if (statusText.innerText === 'Listening...') {
+            statusText.innerText = 'Ready';
+        }
     }
     
     startBtn.onclick = toggleRecording;
@@ -492,7 +540,14 @@ async function startServer() {
 
   const server = http.createServer(app);
   
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  const ai = new GoogleGenAI({ 
+    apiKey: process.env.GEMINI_API_KEY!,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      }
+    }
+  });
   
   app.post('/api/chat', async (req, res) => {
     try {
