@@ -1488,77 +1488,52 @@ export default function App() {
                 </div>
                 <h3 className="text-lg font-bold text-slate-900">Visual Branding</h3>
               </div>
-              <div className="p-8 space-y-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Theme Color</label>
-                    <div className="flex flex-wrap gap-3">
+              <div className="p-10">
+                <div className="flex flex-col items-center space-y-8">
+                  <div className="w-full text-center space-y-6">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Theme Color</label>
+                    <div className="flex flex-wrap items-center justify-center gap-4">
                       {['#4f46e5', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#111827'].map((color) => (
                         <button
                           key={color}
                           onClick={() => setSaasConfig({ ...saasConfig, themeColor: color })}
-                          className={`w-10 h-10 rounded-full border-4 transition-all ${
+                          className={`w-12 h-12 rounded-full border-4 transition-all shadow-md ${
                             saasConfig.themeColor === color ? 'border-white scale-110 shadow-xl ring-2 ring-slate-900' : 'border-transparent hover:scale-105'
                           }`}
                           style={{ backgroundColor: color }}
                         />
                       ))}
-                      <div className="relative w-10 h-10 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden hover:border-blue-400 bg-slate-50 transition-colors">
+                      <div className="relative w-12 h-12 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden hover:border-blue-400 bg-slate-50 transition-colors shadow-md">
                         <input
                           type="color"
                           value={saasConfig.themeColor || '#4f46e5'}
                           onChange={(e) => setSaasConfig({ ...saasConfig, themeColor: e.target.value })}
                           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150"
                         />
-                        <Plus className="w-4 h-4 text-slate-300" />
+                        <Plus className="w-5 h-5 text-slate-300" />
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Agent Icon</label>
-                    <div className="flex items-center space-x-5">
-                      <div className="w-20 h-20 rounded-3xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm relative group">
-                        {saasConfig.botIcon ? (
-                          <img src={saasConfig.botIcon} alt="Agent" className="w-full h-full object-cover" />
-                        ) : (
-                          <Bot className="w-8 h-8 text-slate-200" />
-                        )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <ImageIcon className="w-6 h-6 text-white" />
-                        </div>
-                      </div>
-                      <div className="flex-1 space-y-3">
-                        <div className="relative group">
-                          <ImageIcon className="w-3.5 h-3.5 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500" />
-                          <input
-                            type="url"
-                            value={saasConfig.botIcon || ''}
-                            onChange={(e) => setSaasConfig({ ...saasConfig, botIcon: e.target.value })}
-                            className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-10 py-3 text-xs font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
-                            placeholder="Paste icon URL here..."
-                          />
-                        </div>
-                        <label className="flex items-center justify-center space-x-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 cursor-pointer transition-all">
-                          <FileUp className="w-3.5 h-3.5 text-blue-500" />
-                          <span>Upload Image</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setSaasConfig({ ...saasConfig, botIcon: reader.result as string });
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
+                  <div className="w-full max-w-[240px] space-y-3">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Custom Hex Code</p>
+                    <div className="relative group">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-sm group-focus-within:text-blue-500 transition-colors">#</div>
+                      <input
+                        type="text"
+                        value={(saasConfig.themeColor || '').replace('#', '')}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
+                          setSaasConfig({ ...saasConfig, themeColor: val ? `#${val}` : '' });
+                        }}
+                        onBlur={(e) => {
+                          let val = e.target.value.replace(/[^0-9A-Fa-f]/g, '');
+                          if (val.length === 3) val = val.split('').map(c => c + c).join('');
+                          if (val.length === 6) setSaasConfig({ ...saasConfig, themeColor: '#' + val });
+                        }}
+                        placeholder="Enter hex code..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-3 text-sm font-mono text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm text-center tracking-wider"
+                      />
                     </div>
                   </div>
                 </div>
