@@ -1720,29 +1720,44 @@ export default function App() {
     bookingEnabled: ${JSON.stringify(saasConfig.bookingEnabled)},
     bookingUrl: ${JSON.stringify(saasConfig.bookingUrl)},
     themeColor: ${JSON.stringify(saasConfig.themeColor)},
-    botIcon: ${JSON.stringify(saasConfig.botIcon)},
     userId: ${JSON.stringify(user?.id)}
   };
   (function() {
-    console.log("[VoiceGPT] Initializing agent...");
-    if (window.VOICEGPT_CONFIG) {
-      console.log("[VoiceGPT] Config detected for: " + window.VOICEGPT_CONFIG.websiteName);
-      var s = document.createElement('script');
-      s.type = 'text/javascript';
-      s.async = true;
-      s.src = '${window.location.origin}/vagent.js';
-      console.log("[VoiceGPT] Loading script from: ${window.location.origin}");
-      document.body.appendChild(s);
-    } else {
-      console.error("[VoiceGPT] Configuration missing!");
-    }
+    var s = document.createElement('script');
+    s.type = 'text/javascript';
+    s.async = true;
+    s.src = '${window.location.origin}/vagent.js?v=' + Date.now();
+    document.body.appendChild(s);
   })();
 //]]>
 </script>`}
                      </pre>
                      <button 
                         onClick={() => {
-                            window.navigator.clipboard.writeText(`<script type='text/javascript'>\n//<![CDATA[\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)},\n    bookingEnabled: ${JSON.stringify(saasConfig.bookingEnabled)},\n    bookingUrl: ${JSON.stringify(saasConfig.bookingUrl)},\n    themeColor: ${JSON.stringify(saasConfig.themeColor)},\n    botIcon: ${JSON.stringify(saasConfig.botIcon)},\n    userId: ${JSON.stringify(user?.id)}\n  };\n  (function() {\n    console.log("[VoiceGPT] Initializing agent...");\n    if (window.VOICEGPT_CONFIG) {\n      console.log("[VoiceGPT] Config detected for: " + window.VOICEGPT_CONFIG.websiteName);\n      var s = document.createElement('script');\n      s.type = 'text/javascript';\n      s.async = true;\n      s.src = '${window.location.origin}/vagent.js';\n      console.log("[VoiceGPT] Loading script from: ${window.location.origin}");\n      document.body.appendChild(s);\n    } else {\n      console.error("[VoiceGPT] Configuration missing!");\n    }\n  })();\n//]]>\n</script>`);
+                            const configStr = `window.VOICEGPT_CONFIG = {
+    websiteName: ${JSON.stringify(saasConfig.websiteName)},
+    agentName: ${JSON.stringify(saasConfig.agentName)},
+    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},
+    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},
+    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},
+    language: ${JSON.stringify(saasConfig.language)},
+    personality: ${JSON.stringify(saasConfig.personality)},
+    bookingEnabled: ${JSON.stringify(saasConfig.bookingEnabled)},
+    bookingUrl: ${JSON.stringify(saasConfig.bookingUrl)},
+    themeColor: ${JSON.stringify(saasConfig.themeColor)},
+    userId: ${JSON.stringify(user?.id)}
+  };`;
+
+                            const scriptStr = `(function() {
+    var s = document.createElement('script');
+    s.type = 'text/javascript';
+    s.async = true;
+    s.src = '${window.location.origin}/vagent.js?v=' + Date.now();
+    document.body.appendChild(s);
+  })();`;
+
+                            const embedCode = `<script type='text/javascript'>\n//<![CDATA[\n  ${configStr}\n  ${scriptStr}\n//]]>\n</script>`;
+                            window.navigator.clipboard.writeText(embedCode);
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                         }}

@@ -63,6 +63,7 @@ async function startServer() {
   });
 
   app.get('/api/usage-status/:userId', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
     try {
       const { userId } = req.params;
       const userDoc = await adminDb.collection('users').doc(userId).get();
@@ -539,6 +540,10 @@ async function startServer() {
   app.use(express.json());
 
   const server = http.createServer(app);
+
+  server.on('error', (err) => {
+    console.error('[SERVER] Server error:', err);
+  });
   
   const ai = new GoogleGenAI({ 
     apiKey: process.env.GEMINI_API_KEY!,
@@ -548,8 +553,9 @@ async function startServer() {
       }
     }
   });
-  
+
   app.post('/api/chat', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
     try {
         if (!process.env.GEMINI_API_KEY) {
              console.error("GEMINI_API_KEY is missing");
@@ -633,7 +639,17 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
   const wss = new WebSocketServer({ server, path: '/live' });
   
-  wss.on('connection', async (clientWs, req) => {
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws: any) => {
+      if (ws.isAlive === false) return ws.terminate();
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on('connection', async (clientWs: any, req) => {
+    clientWs.isAlive = true;
+    clientWs.on('pong', () => { clientWs.isAlive = true; });
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
       const websiteName = url.searchParams.get('websiteName') || 'Acme Corp';
