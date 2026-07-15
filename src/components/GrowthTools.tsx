@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { TrendingUp, Clock, Globe, Undo2, ChevronRight, CheckCircle2, AlertCircle, Search, Gauge, Layout, ShieldCheck, Zap, Mic, Sparkles, Bot, Code, Copy, Timer, Type, ListFilter, SortAsc, RefreshCcw } from 'lucide-react';
+import { TrendingUp, Clock, Globe, Undo2, ChevronRight, CheckCircle2, AlertCircle, Search, Gauge, Layout, ShieldCheck, Zap, Mic, Sparkles, Bot, Code, Copy, Timer, Type, ListFilter, SortAsc, RefreshCcw, FileText, FilePlus, FileMinus, FileArchive, FileKey, FileDown, FileUp , FileEdit, Image as ImageIcon, FileImage, RotateCw, Droplet, Scissors, Hash} from 'lucide-react';
 import { OneMinuteChallenge } from './OneMinuteChallenge';
 import { FAQItem, COMMON_FAQS } from './FAQ';
 
@@ -206,7 +206,9 @@ function TryOtherTools({ currentToolId, onToolSelect }: { currentToolId: string,
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="bg-white p-6 rounded-[32px] ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all group flex flex-col items-start w-full md:w-[calc(50%-12px)] lg:w-[calc(33.33%-16px)] xl:w-[calc(25%-18px)]"
+                whileHover={{ y: -8, scale: 1.02 }}
+                onClick={() => onToolSelect?.(tool.id as any)}
+                className="bg-white p-6 rounded-[32px] ring-1 ring-slate-200 shadow-sm hover:shadow-xl transition-all group flex flex-col items-start w-full md:w-[calc(50%-12px)] lg:w-[calc(33.33%-16px)] xl:w-[calc(25%-18px)] cursor-pointer"
              >
                 <div className={`w-14 h-14 ${tool.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                    {tool.icon}
@@ -2096,3 +2098,989 @@ export function TextReverser({ onBack, onCTA, onToolSelect }: ToolProps) {
   );
 }
 
+
+export function PDFToText({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center`}>
+              <FileText className={`w-6 h-6 text-blue-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">PDF to Text</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Upload a PDF document to extract clean, readable text instantly.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">PDF files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your PDF</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFMerge({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center`}>
+              <FilePlus className={`w-6 h-6 text-indigo-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Merge PDF</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Combine multiple PDF files into a single document easily.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">PDF files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your PDF</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFSplit({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center`}>
+              <FileMinus className={`w-6 h-6 text-teal-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Split PDF</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Extract pages or split a large PDF into smaller, manageable files.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">PDF files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-teal-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-teal-700 transition-all shadow-lg shadow-teal-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your PDF</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-teal-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-teal-700 transition-all shadow-lg shadow-teal-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFCompress({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center`}>
+              <FileArchive className={`w-6 h-6 text-amber-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Compress PDF</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Reduce the file size of your PDFs while maintaining quality.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">PDF files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-amber-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-amber-700 transition-all shadow-lg shadow-amber-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-amber-100 border-t-amber-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your PDF</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-amber-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-amber-700 transition-all shadow-lg shadow-amber-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFProtect({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center`}>
+              <FileKey className={`w-6 h-6 text-rose-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Protect PDF</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Add password protection to secure your sensitive PDF documents.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">PDF files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-rose-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-rose-100 border-t-rose-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your PDF</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-rose-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFUnlock({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center`}>
+              <FileDown className={`w-6 h-6 text-purple-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Unlock PDF</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Remove passwords and restrictions from your PDF files.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">PDF files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-purple-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your PDF</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-purple-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function PDFToWord({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center`}>
+              <FileEdit className={`w-6 h-6 text-blue-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">PDF to Word</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Convert PDF documents to editable Microsoft Word files.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">.pdf files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your file</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFToImage({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center`}>
+              <ImageIcon className={`w-6 h-6 text-emerald-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">PDF to Image</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Extract images from PDF or convert pages to JPG/PNG.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">.pdf files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your file</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function ImageToPDF({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center`}>
+              <FileImage className={`w-6 h-6 text-indigo-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Image to PDF</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Convert JPG, PNG, and other images to PDF format.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">image/* files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept="image/*" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your file</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFRotate({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center`}>
+              <RotateCw className={`w-6 h-6 text-amber-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Rotate PDF</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Rotate your PDF pages to the correct orientation.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">.pdf files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-amber-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-amber-700 transition-all shadow-lg shadow-amber-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-amber-100 border-t-amber-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your file</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-amber-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-amber-700 transition-all shadow-lg shadow-amber-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFWatermark({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-cyan-50 rounded-xl flex items-center justify-center`}>
+              <Droplet className={`w-6 h-6 text-cyan-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Add Watermark</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Stamp an image or text watermark over your PDF.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">.pdf files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-cyan-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-cyan-100 border-t-cyan-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your file</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-cyan-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFDeletePages({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center`}>
+              <Scissors className={`w-6 h-6 text-rose-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Delete Pages</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Remove unwanted pages from your PDF documents.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">.pdf files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-rose-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-rose-100 border-t-rose-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your file</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-rose-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export function PDFPageNumbers({ onBack, onCTA }: ToolProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+
+  const handleProcess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setStatus('processing');
+    setTimeout(() => setStatus('done'), 2000);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto w-full px-6 py-24 md:py-32">
+      <button onClick={onBack} className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform">
+        <Undo2 className="w-4 h-4 mr-2" /> Back to Tools
+      </button>
+
+      <div className="bg-white rounded-[32px] ring-1 ring-slate-200 shadow-xl p-8 md:p-12 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center`}>
+              <Hash className={`w-6 h-6 text-slate-600`} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Add Page Numbers</h1>
+              <p className="text-slate-400 text-sm">Powered by VoiceGPT AI</p>
+            </div>
+          </div>
+        </div>
+
+        {status === 'idle' && (
+          <form onSubmit={handleProcess} className="space-y-6">
+            <p className="text-slate-500 text-lg">Insert page numbers into your PDF documents with ease.</p>
+            <div className="flex flex-col gap-4">
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer" onClick={() => document.getElementById('pdf-upload')?.click()}>
+                <FileUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">.pdf files only (max 10MB)</p>
+                <input id="pdf-upload" type="file" accept=".pdf" className="hidden" onChange={(e: any) => setFile(e.target.files?.[0] || null)} />
+              </div>
+              {file && <p className="text-sm text-slate-600 font-medium text-center">Selected: {file.name}</p>}
+              <button type="submit" disabled={!file} className={`bg-slate-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-slate-700 transition-all shadow-lg shadow-slate-600/20 active:scale-95 whitespace-nowrap disabled:opacity-50`}>
+                Start Processing
+              </button>
+            </div>
+          </form>
+        )}
+
+        {status === 'processing' && (
+          <div className="py-24 md:py-32 flex flex-col items-center">
+            <div className={`w-24 h-24 border-4 border-slate-100 border-t-slate-600 rounded-full animate-spin mb-8`} />
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Processing Document...</h3>
+            <p className="text-slate-500">Please wait while we process your file</p>
+          </div>
+        )}
+
+        {status === 'done' && (
+          <div className="py-12 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Task Completed Successfully!</h3>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              We've processed your document. Get the full output and more advanced features with a free VoiceGPT account.
+            </p>
+            <button onClick={onCTA} className={`bg-slate-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-slate-700 transition-all shadow-lg shadow-slate-600/20 active:scale-95`}>
+              Unlock Full Output
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

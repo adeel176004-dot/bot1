@@ -8,6 +8,7 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isVerified() { return isSignedIn(); } // Keeping it simple for demo
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { return isSignedIn() && request.auth.token.email == 'admin@voiceagent.com'; }
 
     // --- Global Safety Net ---
     match /{document=**} {
@@ -22,7 +23,8 @@ service cloud.firestore {
           && data.totalMessages is number;
       }
 
-      allow read: if isOwner(userId);
+      allow read: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().totalMessages == 0;
       allow update: if isOwner(userId) && isValidUser(incoming()) && (
         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'role', 'plan', 'totalMessages', 'updatedAt'])

@@ -123,7 +123,7 @@ export function FeaturesPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-4xl md:text-6xl font-bold tracking-tight text-slate-900 mb-8"
+            className="text-4xl md:text-5xl font-bold text-slate-900 mb-6 tracking-tight leading-tight md:leading-tight max-w-2xl mx-auto"
           >
             Capabilities that scale with your <span className="text-blue-600">website</span>
           </motion.h1>
@@ -131,7 +131,7 @@ export function FeaturesPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-lg md:text-xl text-slate-500 font-medium mb-16"
+            className="text-lg text-slate-600 mb-16"
           >
             The easiest way to automate your website's customer interactions. Just paste a link and let our AI do the rest.
           </motion.p>

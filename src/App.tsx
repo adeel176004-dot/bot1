@@ -5,14 +5,14 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { pcmToBase64, base64ToPcm } from './lib/audioUtils';
-import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown, Layout, ShieldCheck, CheckCircle2, Search, Zap, Loader2, Type, ListFilter, SortAsc, RefreshCcw, Timer, LayoutDashboard } from 'lucide-react';
+import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, ChevronLeft, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown, Layout, ShieldCheck, CheckCircle2, Search, Zap, Loader2, Type, ListFilter, SortAsc, RefreshCcw, Timer, LayoutDashboard, FileText, FilePlus, FileMinus, FileArchive, FileKey, FileUp, FileDown , FileEdit, Image as ImageIcon, FileImage, RotateCw, Droplet, Scissors, Hash, Plus} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { SupportAgent } from './components/SupportAgent';
 import { TOP_100_LANGUAGES } from './data/languages';
-import { SEOAnalyzer, SpeedTester, SitemapGenerator, URLExtractor, FAQGenerator, BusinessNameGenerator, PrivacyPolicyGenerator, TermsGenerator, RobotsGenerator, DomainGenerator, WordCounter, ReadingTimeCalculator, CaseConverter, RemoveDuplicateLines, TextSorter, TextReverser, BlogWriter, ArticleWriter, ParagraphGenerator, EssayWriter, VoiceAIUpsell } from './components/GrowthTools';
+import { SEOAnalyzer, SpeedTester, SitemapGenerator, URLExtractor, FAQGenerator, BusinessNameGenerator, PrivacyPolicyGenerator, TermsGenerator, RobotsGenerator, DomainGenerator, WordCounter, ReadingTimeCalculator, CaseConverter, RemoveDuplicateLines, TextSorter, TextReverser, BlogWriter, ArticleWriter, ParagraphGenerator, EssayWriter, VoiceAIUpsell, PDFToText, PDFMerge, PDFSplit, PDFCompress, PDFProtect, PDFUnlock, PDFToWord, PDFToImage, ImageToPDF, PDFRotate, PDFWatermark, PDFDeletePages, PDFPageNumbers } from './components/GrowthTools';
 import { FeaturesPage } from './components/Features';
 import { InteractiveWaveform } from './components/Waveform';
 import { MouseFollowGlow } from './components/GlowEffect';
@@ -52,9 +52,12 @@ export default function App() {
 
   const [appMode, setAppMode] = useState<'saas' | 'agent'>('saas');
   const [currentView, setCurrentView] = useState<'landing' | 'tools' | 'features' | 'pricing' | 'admin' | 'analytics'>('landing');
-  const [activeTool, setActiveTool] = useState<'seo' | 'speed' | 'sitemap' | 'url-extractor' | 'faq-gen' | 'name-gen' | 'privacy-gen' | 'terms-gen' | 'robots-gen' | 'domain-gen' | 'word-counter' | 'reading-time' | 'case-converter' | 'remove-duplicates' | 'text-sorter' | 'text-reverser' | 'blog-writer' | 'article-writer' | 'paragraph-gen' | 'essay-writer' | null>(null);
-  const [activeCategory, setActiveCategory] = useState<'All' | 'Optimization' | 'Documentation' | 'Generative'>('All');
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<'All' | 'Optimization' | 'Documentation' | 'Generative' | 'PDF Tools'>('All');
+  const [visibleToolsCount, setVisibleToolsCount] = useState(12);
   const [isCreating, setIsCreating] = useState(false);
+  const [currentBuilderStep, setCurrentBuilderStep] = useState(1);
+  const totalSteps = 4;
   const [showDemo, setShowDemo] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
@@ -72,7 +75,11 @@ export default function App() {
     customInstructions: '',
     voiceGender: 'female' as 'male' | 'female',
     language: 'English',
-    personality: 'Friendly'
+    personality: 'Friendly',
+    bookingEnabled: false,
+    bookingUrl: '',
+    themeColor: '#4f46e5',
+    botIcon: ''
   });
   
   const wsRef = useRef<WebSocket | null>(null);
@@ -107,6 +114,8 @@ export default function App() {
         voiceGender: saasConfig.voiceGender,
         language: saasConfig.language,
         personality: saasConfig.personality,
+        bookingEnabled: String(saasConfig.bookingEnabled || false),
+        bookingUrl: saasConfig.bookingUrl || '',
         userId: user?.id || ''
       }).toString();
       const ws = new WebSocket(`${protocol}//${window.location.host}/live?${urlParams}`);
@@ -298,11 +307,11 @@ export default function App() {
           plan: selectedPlan,
           updatedAt: new Date().toISOString()
         });
-        // Note: The onSnapshot listener will update the local user state
       } catch (err) {
         console.error("Failed to update plan:", err);
       }
-      setIsCreating(true);
+      setIsCreating(false);
+      setCurrentView('analytics');
     } else {
       setPendingAction('create_agent');
       setAuthMode('signup');
@@ -349,6 +358,17 @@ export default function App() {
       });
     }
   }, [user]);
+
+  const handleCreateAgent = () => {
+    const maxLinks = getMaxLinks(user?.plan);
+    const cleanedLinks = saasConfig.websiteLinks.filter(l => l.trim() !== '').slice(0, maxLinks);
+    setSaasConfig({ 
+      ...saasConfig, 
+      websiteLinks: cleanedLinks.length > 0 ? cleanedLinks : [''] 
+    });
+    setAppMode('agent');
+    setIsCreating(false);
+  };
 
   if (appMode === 'saas') {
     if (currentView === 'tools') {
@@ -419,29 +439,68 @@ export default function App() {
         if (activeTool === 'essay-writer') {
           return <EssayWriter onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
         }
+        if (activeTool === 'pdf-to-text') {
+          return <PDFToText onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-merge') {
+          return <PDFMerge onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-split') {
+          return <PDFSplit onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-compress') {
+          return <PDFCompress onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-protect') {
+          return <PDFProtect onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-unlock') {
+          return <PDFUnlock onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-to-word') {
+          return <PDFToWord onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-to-image') {
+          return <PDFToImage onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'image-to-pdf') {
+          return <ImageToPDF onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-rotate') {
+          return <PDFRotate onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-watermark') {
+          return <PDFWatermark onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-delete-pages') {
+          return <PDFDeletePages onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
+        if (activeTool === 'pdf-page-numbers') {
+          return <PDFPageNumbers onBack={() => setActiveTool(null)} onCTA={handleCTA} onToolSelect={setActiveTool} />;
+        }
 
         return (
           <div className="max-w-6xl mx-auto w-full px-6 py-20">
-             <div className="max-w-3xl mb-16">
+             <div className="max-w-3xl mx-auto text-center mb-16">
                 <button 
                   onClick={() => setCurrentView('landing')}
-                  className="flex items-center text-sm font-medium text-blue-600 mb-8 hover:translate-x-[-4px] transition-transform"
+                  className="inline-flex items-center text-sm font-medium text-blue-600 mb-8 hover:-translate-x-1 transition-transform"
                 >
                   <Undo2 className="w-4 h-4 mr-2" /> Back to Home
                 </button>
-                <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-slate-900 mb-6">
-                   Free Growth Tools
+                <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6 tracking-tight leading-tight md:leading-tight max-w-2xl mx-auto">
+                   Free growth tools
                 </h1>
-                <p className="text-slate-500 text-xl leading-relaxed">
+                <p className="text-lg text-slate-600">
                    Optimize your online presence and scale your customer interactions with our collection of free performance tools.
                 </p>
              </div>
 
              <div className="flex flex-wrap justify-center gap-3 mb-12">
-                {['All', 'Optimization', 'Documentation', 'Generative'].map((cat) => (
+                {['All', 'Optimization', 'Documentation', 'Generative', 'PDF Tools'].map((cat) => (
                    <button
                       key={cat}
-                      onClick={() => setActiveCategory(cat as any)}
+                      onClick={() => { setActiveCategory(cat as any); setVisibleToolsCount(12); }}
                       className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
                          activeCategory === cat 
                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
@@ -454,7 +513,8 @@ export default function App() {
              </div>
 
              <div className="flex flex-wrap justify-center gap-6">
-                {[
+                {(() => {
+                  const allTools = [
                    {
                       id: 'seo',
                       category: 'Optimization',
@@ -614,32 +674,156 @@ export default function App() {
                       desc: "Write academic or informative essays with proper introduction, body, and conclusion.",
                       icon: <Code className="w-6 h-6 text-rose-600" />,
                       color: "bg-rose-50"
+                   },
+                   {
+                      id: 'pdf-to-text',
+                      category: 'PDF Tools',
+                      title: "PDF to Text",
+                      desc: "Extract clean, readable text from any PDF document instantly.",
+                      icon: <FileText className="w-6 h-6 text-blue-600" />,
+                      color: "bg-blue-50"
+                   },
+                   {
+                      id: 'pdf-merge',
+                      category: 'PDF Tools',
+                      title: "Merge PDF",
+                      desc: "Combine multiple PDF files into a single document easily.",
+                      icon: <FilePlus className="w-6 h-6 text-indigo-600" />,
+                      color: "bg-indigo-50"
+                   },
+                   {
+                      id: 'pdf-split',
+                      category: 'PDF Tools',
+                      title: "Split PDF",
+                      desc: "Extract pages or split a large PDF into smaller, manageable files.",
+                      icon: <FileMinus className="w-6 h-6 text-teal-600" />,
+                      color: "bg-teal-50"
+                   },
+                   {
+                      id: 'pdf-compress',
+                      category: 'PDF Tools',
+                      title: "Compress PDF",
+                      desc: "Reduce the file size of your PDFs while maintaining quality.",
+                      icon: <FileArchive className="w-6 h-6 text-amber-600" />,
+                      color: "bg-amber-50"
+                   },
+                   {
+                      id: 'pdf-protect',
+                      category: 'PDF Tools',
+                      title: "Protect PDF",
+                      desc: "Add password protection to secure your sensitive PDF documents.",
+                      icon: <FileKey className="w-6 h-6 text-rose-600" />,
+                      color: "bg-rose-50"
+                   },
+                   {
+                      id: 'pdf-unlock',
+                      category: 'PDF Tools',
+                      title: "Unlock PDF",
+                      desc: "Remove passwords and restrictions from your PDF files.",
+                      icon: <FileDown className="w-6 h-6 text-purple-600" />,
+                      color: "bg-purple-50"
+                   },
+                   {
+                      id: 'pdf-to-word',
+                      category: 'PDF Tools',
+                      title: "PDF to Word",
+                      desc: "Convert PDF documents to editable Microsoft Word files.",
+                      icon: <FileEdit className="w-6 h-6 text-blue-600" />,
+                      color: "bg-blue-50"
+                   },
+                   {
+                      id: 'pdf-to-image',
+                      category: 'PDF Tools',
+                      title: "PDF to Image",
+                      desc: "Extract images from PDF or convert pages to JPG/PNG.",
+                      icon: <ImageIcon className="w-6 h-6 text-emerald-600" />,
+                      color: "bg-emerald-50"
+                   },
+                   {
+                      id: 'image-to-pdf',
+                      category: 'PDF Tools',
+                      title: "Image to PDF",
+                      desc: "Convert JPG, PNG, and other images to PDF format.",
+                      icon: <FileImage className="w-6 h-6 text-indigo-600" />,
+                      color: "bg-indigo-50"
+                   },
+                   {
+                      id: 'pdf-rotate',
+                      category: 'PDF Tools',
+                      title: "Rotate PDF",
+                      desc: "Rotate your PDF pages to the correct orientation.",
+                      icon: <RotateCw className="w-6 h-6 text-amber-600" />,
+                      color: "bg-amber-50"
+                   },
+                   {
+                      id: 'pdf-watermark',
+                      category: 'PDF Tools',
+                      title: "Add Watermark",
+                      desc: "Stamp an image or text watermark over your PDF.",
+                      icon: <Droplet className="w-6 h-6 text-cyan-600" />,
+                      color: "bg-cyan-50"
+                   },
+                   {
+                      id: 'pdf-delete-pages',
+                      category: 'PDF Tools',
+                      title: "Delete Pages",
+                      desc: "Remove unwanted pages from your PDF documents.",
+                      icon: <Scissors className="w-6 h-6 text-rose-600" />,
+                      color: "bg-rose-50"
+                   },
+                   {
+                      id: 'pdf-page-numbers',
+                      category: 'PDF Tools',
+                      title: "Add Page Numbers",
+                      desc: "Insert page numbers into your PDF documents with ease.",
+                      icon: <Hash className="w-6 h-6 text-slate-600" />,
+                      color: "bg-slate-50"
                    }
-                ]
-                 .filter(t => activeCategory === 'All' || (t as any).category === activeCategory)
-                 .map((tool, i) => (
-                   <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="bg-white p-6 rounded-[32px] ring-1 ring-slate-200 shadow-sm hover:shadow-xl hover:ring-blue-100 transition-all group flex flex-col items-start w-full md:w-[calc(50%-12px)] lg:w-[calc(33.33%-16px)] xl:w-[calc(25%-18px)]"
-                   >
-                      <div className={`w-14 h-14 ${tool.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                         {tool.icon}
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-900 mb-2">{tool.title}</h3>
-                      <p className="text-slate-500 text-base leading-relaxed mb-4">
-                         {tool.desc}
-                      </p>
-                      <button 
-                        onClick={() => setActiveTool(tool.id as any)}
-                        className="mt-auto flex items-center text-blue-600 font-bold hover:translate-x-1 transition-transform"
+                ];
+                
+                const filteredTools = allTools.filter(t => activeCategory === 'All' || (t as any).category === activeCategory);
+                const displayedTools = filteredTools.slice(0, visibleToolsCount);
+                
+                return (
+                  <>
+                    {displayedTools.map((tool, i) => (
+                      <motion.div
+                         key={i}
+                         initial={{ opacity: 0, y: 20 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         whileHover={{ y: -8, scale: 1.02 }}
+                         transition={{ delay: (i % 12) * 0.05 }}
+                         onClick={() => setActiveTool(tool.id as any)}
+                         className="bg-white p-6 rounded-[32px] ring-1 ring-slate-200 shadow-sm hover:shadow-xl hover:ring-blue-100 transition-all group flex flex-col items-start w-full md:w-[calc(50%-12px)] lg:w-[calc(33.33%-16px)] xl:w-[calc(25%-18px)] cursor-pointer"
                       >
-                         Use Tool <ChevronRight className="w-5 h-5 ml-1" />
-                      </button>
-                   </motion.div>
-                ))}
+                         <div className={`w-14 h-14 ${tool.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                            {tool.icon}
+                         </div>
+                         <h3 className="text-xl font-bold text-slate-900 mb-2">{tool.title}</h3>
+                         <p className="text-slate-500 text-base leading-relaxed mb-4">
+                            {tool.desc}
+                         </p>
+                         <button 
+                            onClick={() => setActiveTool(tool.id as any)}
+                           className="mt-auto flex items-center text-blue-600 font-bold hover:translate-x-1 transition-transform"
+                         >
+                            Use Tool <ChevronRight className="w-5 h-5 ml-1" />
+                         </button>
+                      </motion.div>
+                    ))}
+                    {filteredTools.length > visibleToolsCount && (
+                      <div className="w-full flex justify-center mt-10">
+                        <button 
+                          onClick={() => setVisibleToolsCount(prev => prev + 12)} 
+                          className="px-8 py-3 bg-white text-blue-600 font-bold rounded-xl ring-1 ring-slate-200 hover:ring-blue-300 hover:text-blue-700 hover:shadow-lg transition-all"
+                        >
+                          Show More Tools
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
              </div>
           </div>
         );
@@ -793,7 +977,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
-                    className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-slate-900 leading-[1.1]"
+                    className="text-4xl md:text-5xl font-bold text-slate-900 mb-6 tracking-tight leading-tight md:leading-tight max-w-2xl mx-auto"
                  >
                     Supercharge your website with <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-500">Voice AI</span>
                  </motion.h1>
@@ -801,7 +985,7 @@ export default function App() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
-                    className="text-lg md:text-xl text-slate-500 max-w-3xl mx-auto font-medium"
+                    className="text-lg text-slate-600 max-w-3xl mx-auto"
                  >
                     Train your superhuman AI voice agent instantly by pasting your website URL. Auto-detects your data and handles customer queries in under 60 seconds.
                  </motion.p>
@@ -1175,169 +1359,308 @@ export default function App() {
                   )}
                 </div>
            </div>
-        </header>
-
-        <main className="flex-1 flex flex-col items-center justify-center py-10 md:py-16 px-6 relative overflow-hidden">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-100 blur-[100px] opacity-60 pointer-events-none" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-100 blur-[100px] opacity-60 pointer-events-none" />
-          
-          <div className="max-w-xl w-full z-10 bg-white p-10 md:p-12 rounded-[32px] shadow-xl ring-1 ring-slate-900/5 my-8">
-            <div className="flex flex-col items-center mb-10">
-               <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center ring-1 ring-blue-100 mb-6">
-                   <Sparkles className="w-8 h-8 text-blue-500" />
-               </div>
-               <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Create your voice agent</h1>
-               <p className="text-slate-500 mt-3 text-center text-lg">Configure your website's AI agent in seconds.</p>
+        </header>        <main className="flex-1 bg-slate-50 min-h-screen pb-32 relative">
+          <div className="max-w-4xl mx-auto px-6 py-12 space-y-8">
+            {/* Header Section */}
+            <div className="flex items-center justify-between mb-10">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Agent Studio</h1>
+                  <p className="text-slate-500 font-medium text-sm mt-1">Configure and deploy your voice agent in minutes.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsCreating(false)}
+                className="flex items-center space-x-2 px-4 py-2 text-slate-400 hover:text-slate-900 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200 hover:shadow-sm"
+              >
+                <X className="w-5 h-5" />
+                <span className="text-sm font-bold">Exit Studio</span>
+              </button>
             </div>
 
-            <div className="space-y-4">
-               <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Website Name</label>
-                  <input 
-                     type="text" 
-                     value={saasConfig.websiteName}
-                     onChange={e => setSaasConfig({...saasConfig, websiteName: e.target.value})}
-                     placeholder="e.g. Acme Corp"
-                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
-                  />
-               </div>
-               <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Agent Name</label>
-                  <input 
-                     type="text" 
-                     value={saasConfig.agentName}
-                     onChange={e => setSaasConfig({...saasConfig, agentName: e.target.value})}
-                     placeholder="e.g. Sarah"
-                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
-                  />
-               </div>
-               <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Website Pages (Context for AI)</label>
-                  {saasConfig.websiteLinks.map((link, idx) => (
-                      <div key={idx} className="flex space-x-2 mb-2">
-                          <input 
-                              type="url" 
-                              value={link}
-                              onChange={e => {
-                                  const newLinks = [...saasConfig.websiteLinks];
-                                  newLinks[idx] = e.target.value;
-                                  setSaasConfig({...saasConfig, websiteLinks: newLinks});
-                              }}
-                              placeholder="e.g. https://example.com/about"
-                              className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
-                          />
-                          {saasConfig.websiteLinks.length > 1 && (
-                              <button 
-                                  onClick={() => {
-                                      const newLinks = saasConfig.websiteLinks.filter((_, i) => i !== idx);
-                                      setSaasConfig({...saasConfig, websiteLinks: newLinks});
-                                  }} 
-                                  className="px-4 py-3 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-colors"
-                              >
-                                  <X className="w-5 h-5"/>
-                              </button>
-                          )}
+            {/* Section 1: Identity & Persona */}
+            <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
+              <div className="px-8 py-6 border-b border-slate-50 flex items-center space-x-3 bg-slate-50/30">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">Identity & Persona</h3>
+              </div>
+              <div className="p-8 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Website Name</label>
+                    <div className="relative group">
+                      <Globe className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500 transition-colors" />
+                      <input 
+                        type="text" 
+                        value={saasConfig.websiteName}
+                        onChange={e => setSaasConfig({...saasConfig, websiteName: e.target.value})}
+                        placeholder="e.g. Acme Corp"
+                        className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-11 py-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Agent Name</label>
+                    <div className="relative group">
+                      <Bot className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500 transition-colors" />
+                      <input 
+                        type="text" 
+                        value={saasConfig.agentName}
+                        onChange={e => setSaasConfig({...saasConfig, agentName: e.target.value})}
+                        placeholder="e.g. Sarah"
+                        className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-11 py-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Personality Tone</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['Friendly', 'Professional', 'Enthusiastic', 'Direct'].map(tone => (
+                      <button
+                        key={tone}
+                        onClick={() => setSaasConfig({...saasConfig, personality: tone})}
+                        className={`px-4 py-3 rounded-xl border-2 text-sm font-bold transition-all ${
+                          saasConfig.personality === tone 
+                          ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-sm' 
+                          : 'border-slate-100 bg-slate-50/30 text-slate-500 hover:border-slate-200'
+                        }`}
+                      >
+                        {tone}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Voice Profile</label>
+                    <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                      <button 
+                        onClick={() => setSaasConfig({...saasConfig, voiceGender: 'female'})}
+                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                          saasConfig.voiceGender === 'female' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                        }`}
+                      >
+                        Female Voice
+                      </button>
+                      <button 
+                        onClick={() => setSaasConfig({...saasConfig, voiceGender: 'male'})}
+                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                          saasConfig.voiceGender === 'male' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                        }`}
+                      >
+                        Male Voice
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Primary Language</label>
+                    <div className="relative">
+                      <Globe className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <select 
+                        value={saasConfig.language}
+                        onChange={(e) => setSaasConfig({...saasConfig, language: e.target.value})}
+                        className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-11 pr-10 py-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all appearance-none"
+                      >
+                        {TOP_100_LANGUAGES.map(lang => (
+                          <option key={lang} value={lang}>{lang}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Visual Branding */}
+            <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
+              <div className="px-8 py-6 border-b border-slate-50 flex items-center space-x-3 bg-slate-50/30">
+                <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center">
+                  <Droplet className="w-5 h-5 text-pink-500" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">Visual Branding</h3>
+              </div>
+              <div className="p-8 space-y-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Theme Color</label>
+                    <div className="flex flex-wrap gap-3">
+                      {['#4f46e5', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#111827'].map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => setSaasConfig({ ...saasConfig, themeColor: color })}
+                          className={`w-10 h-10 rounded-full border-4 transition-all ${
+                            saasConfig.themeColor === color ? 'border-white scale-110 shadow-xl ring-2 ring-slate-900' : 'border-transparent hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                      <div className="relative w-10 h-10 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden hover:border-blue-400 bg-slate-50 transition-colors">
+                        <input
+                          type="color"
+                          value={saasConfig.themeColor || '#4f46e5'}
+                          onChange={(e) => setSaasConfig({ ...saasConfig, themeColor: e.target.value })}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150"
+                        />
+                        <Plus className="w-4 h-4 text-slate-300" />
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Agent Icon</label>
+                    <div className="flex items-center space-x-5">
+                      <div className="w-20 h-20 rounded-3xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm relative group">
+                        {saasConfig.botIcon ? (
+                          <img src={saasConfig.botIcon} alt="Agent" className="w-full h-full object-cover" />
+                        ) : (
+                          <Bot className="w-8 h-8 text-slate-200" />
+                        )}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <ImageIcon className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-3">
+                        <div className="relative group">
+                          <ImageIcon className="w-3.5 h-3.5 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500" />
+                          <input
+                            type="url"
+                            value={saasConfig.botIcon || ''}
+                            onChange={(e) => setSaasConfig({ ...saasConfig, botIcon: e.target.value })}
+                            className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-10 py-3 text-xs font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
+                            placeholder="Paste icon URL here..."
+                          />
+                        </div>
+                        <label className="flex items-center justify-center space-x-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 cursor-pointer transition-all">
+                          <FileUp className="w-3.5 h-3.5 text-blue-500" />
+                          <span>Upload Image</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setSaasConfig({ ...saasConfig, botIcon: reader.result as string });
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Knowledge Sources */}
+            <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
+              <div className="px-8 py-6 border-b border-slate-50 flex items-center space-x-3 bg-slate-50/30">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-purple-600" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">Knowledge Sources</h3>
+              </div>
+              <div className="p-8 space-y-6">
+                <p className="text-slate-500 text-sm font-medium">Add the URLs your agent should use to learn about your business.</p>
+                <div className="space-y-3">
+                  {saasConfig.websiteLinks.map((link, idx) => (
+                    <div key={idx} className="flex space-x-3 group">
+                      <div className="flex-1 relative">
+                        <Globe className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500" />
+                        <input 
+                          type="url" 
+                          value={link}
+                          onChange={e => {
+                            const newLinks = [...saasConfig.websiteLinks];
+                            newLinks[idx] = e.target.value;
+                            setSaasConfig({...saasConfig, websiteLinks: newLinks});
+                          }}
+                          placeholder="https://yourwebsite.com/about"
+                          className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-11 py-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
+                        />
+                      </div>
+                      {saasConfig.websiteLinks.length > 1 && (
+                        <button 
+                          onClick={() => {
+                            const newLinks = saasConfig.websiteLinks.filter((_, i) => i !== idx);
+                            setSaasConfig({...saasConfig, websiteLinks: newLinks});
+                          }} 
+                          className="p-4 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100"
+                        >
+                          <X className="w-5 h-5"/>
+                        </button>
+                      )}
+                    </div>
                   ))}
                   <button 
-                      onClick={() => setSaasConfig({...saasConfig, websiteLinks: [...saasConfig.websiteLinks, '']})}
-                      disabled={saasConfig.websiteLinks.length >= getMaxLinks(user?.plan)}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-700 mt-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => setSaasConfig({...saasConfig, websiteLinks: [...saasConfig.websiteLinks, '']})}
+                    disabled={saasConfig.websiteLinks.length >= getMaxLinks(user?.plan)}
+                    className="flex items-center space-x-2 text-xs font-bold text-blue-600 hover:bg-blue-50 px-5 py-4 rounded-2xl transition-all border border-dashed border-blue-200 disabled:opacity-50"
                   >
-                      + Add another page link (Max {getMaxLinks(user?.plan)})
+                    <Plus className="w-4 h-4" />
+                    <span>Add Knowledge Link (Max {getMaxLinks(user?.plan)})</span>
                   </button>
-               </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Voice Gender</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button 
-                      onClick={() => setSaasConfig({...saasConfig, voiceGender: 'female'})}
-                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-                        saasConfig.voiceGender === 'female' 
-                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
-                        <Bot className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <span className="font-medium">Female</span>
-                    </button>
-                    <button 
-                      onClick={() => setSaasConfig({...saasConfig, voiceGender: 'male'})}
-                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-                        saasConfig.voiceGender === 'male' 
-                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-2">
-                        <Bot className="w-6 h-6 text-slate-600" />
-                      </div>
-                      <span className="font-medium">Male</span>
-                    </button>
-                  </div>
-               </div>
-
-               <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Primary Language</label>
-                  <select 
-                    value={saasConfig.language}
-                    onChange={(e) => setSaasConfig({...saasConfig, language: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white text-slate-900"
-                  >
-                    {TOP_100_LANGUAGES.map(lang => (
-                      <option key={lang} value={lang}>{lang}</option>
-                    ))}
-                  </select>
-               </div>
-
-               <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Agent Personality</label>
-                  <select 
-                    value={saasConfig.personality}
-                    onChange={(e) => setSaasConfig({...saasConfig, personality: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white text-slate-900"
-                  >
-                    {['Friendly', 'Professional', 'Concise', 'Enthusiastic', 'Empathetic', 'Witty', 'Direct'].map(tone => (
-                      <option key={tone} value={tone}>{tone}</option>
-                    ))}
-                  </select>
-               </div>
-
-               <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Custom Instructions (Optional)</label>
-                  <textarea 
-                     value={saasConfig.customInstructions}
-                     onChange={e => setSaasConfig({...saasConfig, customInstructions: e.target.value})}
-                     placeholder="e.g. Be very helpful and focus on pushing our premium plans."
-                     rows={3}
-                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed resize-none"
-                  />
-               </div>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-8 space-y-3">
-              <button 
-                 onClick={() => {
-                   const maxLinks = getMaxLinks(user?.plan);
-                   const cleanedLinks = saasConfig.websiteLinks.filter(l => l.trim() !== '').slice(0, maxLinks);
-                   setSaasConfig({ 
-                     ...saasConfig, 
-                     websiteLinks: cleanedLinks.length > 0 ? cleanedLinks : [''] 
-                   });
-                   setAppMode('agent');
-                 }}
-                 disabled={!saasConfig.websiteName || !saasConfig.agentName || saasConfig.websiteLinks.every(l => !l.trim())}
-                 className="w-full bg-blue-500 text-white font-medium py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
+            {/* Section 4: Behavioral Core */}
+            <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
+              <div className="px-8 py-6 border-b border-slate-50 flex items-center space-x-3 bg-slate-50/30">
+                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-orange-500" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">Behavioral Core & Instructions</h3>
+              </div>
+              <div className="p-8">
+                <textarea 
+                  value={saasConfig.customInstructions}
+                  onChange={e => setSaasConfig({...saasConfig, customInstructions: e.target.value})}
+                  placeholder="Describe how your agent should behave, its knowledge limits, and preferred interaction style..."
+                  rows={6}
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-3xl px-6 py-5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none shadow-sm"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between pt-12 pb-20">
+              <button
+                onClick={() => setIsCreating(false)}
+                className="px-10 py-4 text-slate-500 hover:text-slate-900 text-sm font-bold transition-all rounded-2xl hover:bg-white border border-transparent hover:border-slate-200"
               >
-                 Create Voice Agent
+                Cancel
               </button>
-              <button 
-                 onClick={() => setIsCreating(false)}
-                 className="w-full bg-slate-100 text-slate-600 font-medium py-3 rounded-xl hover:bg-slate-200 transition-colors"
+              <button
+                onClick={() => {
+                  if (!saasConfig.websiteName || !saasConfig.agentName) {
+                    alert("Please provide at least a Website Name and Agent Name.");
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                  }
+                  handleCreateAgent();
+                }}
+                style={{ 
+                  backgroundColor: saasConfig.themeColor || '#2563eb',
+                  boxShadow: `0 20px 40px -12px ${saasConfig.themeColor}40`
+                }}
+                className="flex items-center space-x-3 text-white px-12 py-4 rounded-2xl font-bold text-sm hover:brightness-110 transition-all active:scale-95 shadow-xl"
               >
-                 Cancel
+                <span>Launch Agent</span>
+                <Zap className="w-4 h-4 fill-white" />
               </button>
             </div>
           </div>
@@ -1419,6 +1742,8 @@ export default function App() {
     voiceGender: ${JSON.stringify(saasConfig.voiceGender)},
     language: ${JSON.stringify(saasConfig.language)},
     personality: ${JSON.stringify(saasConfig.personality)},
+    bookingEnabled: ${JSON.stringify(saasConfig.bookingEnabled)},
+    bookingUrl: ${JSON.stringify(saasConfig.bookingUrl)},
     userId: ${JSON.stringify(user?.id)}
   };
   (function() {
@@ -1432,7 +1757,7 @@ export default function App() {
                      </pre>
                      <button 
                         onClick={() => {
-                            window.navigator.clipboard.writeText(`<script type='text/javascript'>\n//<![CDATA[\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)},\n    userId: ${JSON.stringify(user?.id)}\n  };\n  (function() {\n    var s = document.createElement('script');\n    s.type = 'text/javascript';\n    s.src = '${window.location.origin}/vagent.js';\n    document.body.appendChild(s);\n  })();\n//]]>\n</script>`);
+                            window.navigator.clipboard.writeText(`<script type='text/javascript'>\n//<![CDATA[\n  window.VOICEGPT_CONFIG = {\n    websiteName: ${JSON.stringify(saasConfig.websiteName)},\n    agentName: ${JSON.stringify(saasConfig.agentName)},\n    websiteLinks: ${JSON.stringify(saasConfig.websiteLinks.filter(l => l.trim()))},\n    customInstructions: ${JSON.stringify(saasConfig.customInstructions)},\n    voiceGender: ${JSON.stringify(saasConfig.voiceGender)},\n    language: ${JSON.stringify(saasConfig.language)},\n    personality: ${JSON.stringify(saasConfig.personality)},\n    bookingEnabled: ${JSON.stringify(saasConfig.bookingEnabled)},\n    bookingUrl: ${JSON.stringify(saasConfig.bookingUrl)},\n    themeColor: ${JSON.stringify(saasConfig.themeColor)},\n    botIcon: ${JSON.stringify(saasConfig.botIcon)},\n    userId: ${JSON.stringify(user?.id)}\n  };\n  (function() {\n    var s = document.createElement('script');\n    s.type = 'text/javascript';\n    s.src = '${window.location.origin}/vagent.js';\n    document.body.appendChild(s);\n  })();\n//]]>\n</script>`);
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                         }}

@@ -37,9 +37,12 @@ import {
   History,
   ChevronRight,
   LayoutDashboard,
+  Layout,
   Menu,
-
-  ChevronLeft
+  Calendar,
+  ChevronLeft,
+  Palette,
+  Image as ImageIcon
 } from 'lucide-react';
 
 import { UserStats, VoiceGPTConfig } from '../types';
@@ -95,7 +98,9 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
     customInstructions: '',
     voiceGender: 'female',
     language: 'English',
-    personality: 'Friendly'
+    personality: 'Friendly',
+    bookingEnabled: false,
+    bookingUrl: ''
   });
 
 
@@ -311,7 +316,6 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
     { id: 'agents', label: 'My Agents', icon: Bot },
     { id: 'config', label: 'Agent Configuration', icon: Settings2 },
     { id: 'deployment', label: 'Deployment', icon: Code },
-    { id: 'conversations', label: 'Conversations', icon: History },
     { id: 'analytics', label: 'Analytics', icon: BarChart2 },
     { id: 'billing', label: 'Billing & Plan', icon: ShieldCheck },
   ];
@@ -471,220 +475,372 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
 
       case 'config':
         return (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            
-<motion.div
-                  key="config"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 10 }}
-                  className="space-y-8"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900 tracking-tight">Agent Identity</h3>
-                      <p className="text-slate-500 text-sm">Update your agent's name, voice, and behavioral core.</p>
-                    </div>
-                    {!isEditing ? (
-                      <button 
-                        onClick={() => setIsEditing(true)}
-                        className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 font-bold text-sm hover:bg-indigo-100 transition-colors"
-                      >
-                        <Settings2 className="w-4 h-4" />
-                        <span>Edit Settings</span>
-                      </button>
-                    ) : (
-                      <div className="flex items-center space-x-3">
-                        <button 
-                          onClick={() => { setIsEditing(false); setLocalConfig(config); }}
-                          className="flex items-center space-x-2 px-4 py-2 rounded-xl text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors"
-                        >
-                          <Undo2 className="w-4 h-4" />
-                          <span>Cancel</span>
-                        </button>
-                        <button 
-                          onClick={handleSave}
-                          disabled={saveStatus === 'saving'}
-                          className="flex items-center space-x-2 px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
-                        >
-                          {saveStatus === 'saving' ? (
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : saveStatus === 'saved' ? (
-                            <Check className="w-4 h-4" />
-                          ) : (
-                            <Save className="w-4 h-4" />
-                          )}
-                          <span>{saveStatus === 'saved' ? 'Saved!' : 'Save Changes'}</span>
-                        </button>
-                      </div>
-                    )}
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto px-4 sm:px-6 pb-12">
+            <motion.div
+              key="config"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              className="space-y-6"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">Agent Configuration</h3>
+                  <p className="text-slate-500 text-sm">Fine-tune your agent's identity, behavior, and capabilities.</p>
+                </div>
+                {!isEditing ? (
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-indigo-50 text-indigo-600 font-bold text-sm hover:bg-indigo-100 transition-all active:scale-95"
+                  >
+                    <Settings2 className="w-4 h-4" />
+                    <span>Edit Settings</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-3">
+                    <button 
+                      onClick={() => { setIsEditing(false); setLocalConfig(config); }}
+                      className="flex items-center space-x-2 px-4 py-2.5 rounded-xl text-slate-600 font-bold text-sm hover:bg-slate-50 transition-all active:scale-95"
+                    >
+                      <Undo2 className="w-4 h-4" />
+                      <span>Cancel</span>
+                    </button>
+                    <button 
+                      onClick={handleSave}
+                      disabled={saveStatus === 'saving'}
+                      className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50 active:scale-95"
+                    >
+                      {saveStatus === 'saving' ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : saveStatus === 'saved' ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      <span>{saveStatus === 'saved' ? 'Saved!' : 'Save Changes'}</span>
+                    </button>
                   </div>
+                )}
+              </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Form Left */}
-                    <div className="space-y-8">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Website Name</label>
-                          <div className="relative group">
-                            <Globe className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
-                            <input
-                              type="text"
-                              disabled={!isEditing}
-                              value={localConfig.websiteName}
-                              onChange={(e) => setLocalConfig({ ...localConfig, websiteName: e.target.value })}
-                              className="w-full bg-white border border-slate-300 rounded-xl px-10 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
-                              placeholder="e.g. Acme Corp"
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Agent Name</label>
-                          <div className="relative group">
-                            <Bot className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
-                            <input
-                              type="text"
-                              disabled={!isEditing}
-                              value={localConfig.agentName}
-                              onChange={(e) => setLocalConfig({ ...localConfig, agentName: e.target.value })}
-                              className="w-full bg-white border border-slate-300 rounded-xl px-10 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
-                              placeholder="e.g. Sarah"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Voice Profile</label>
-                          <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200">
-                            <button
-                              disabled={!isEditing}
-                              onClick={() => setLocalConfig({ ...localConfig, voiceGender: 'female' })}
-                              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                                localConfig.voiceGender === 'female'
-                                  ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100'
-                                  : 'text-slate-500 hover:text-slate-700'
-                              } disabled:opacity-50`}
-                            >
-                              Female
-                            </button>
-                            <button
-                              disabled={!isEditing}
-                              onClick={() => setLocalConfig({ ...localConfig, voiceGender: 'male' })}
-                              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                                localConfig.voiceGender === 'male'
-                                  ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100'
-                                  : 'text-slate-500 hover:text-slate-700'
-                              } disabled:opacity-50`}
-                            >
-                              Male
-                            </button>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Language</label>
-                          <div className="relative group">
-                            <Languages className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <select
-                              disabled={!isEditing}
-                              value={localConfig.language}
-                              onChange={(e) => setLocalConfig({ ...localConfig, language: e.target.value })}
-                              className="w-full bg-white border border-slate-300 rounded-xl px-10 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all appearance-none disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
-                            >
-                              {TOP_100_LANGUAGES.map(lang => (
-                                <option key={lang} value={lang}>{lang}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Personality Tone</label>
-                        <div className="relative group">
-                          <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
-                          <input
-                            type="text"
-                            disabled={!isEditing}
-                            value={localConfig.personality}
-                            onChange={(e) => setLocalConfig({ ...localConfig, personality: e.target.value })}
-                            className="w-full bg-white border border-slate-300 rounded-xl px-10 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
-                            placeholder="e.g. Professional, Friendly, Witty"
-                          />
-                        </div>
-                      </div>
+              <div className="space-y-6">
+                {/* Identity & Persona Card */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                  <div className="flex items-center space-x-3 pb-2 border-b border-slate-50">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <Bot className="w-5 h-5 text-blue-600" />
                     </div>
-
-                    {/* Form Right - Context & Instructions */}
-                    <div className="space-y-8">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Knowledge Sources (URLs)</label>
-                          {isEditing && (
-                            <button
-                              onClick={() => setLocalConfig({ ...localConfig, websiteLinks: [...localConfig.websiteLinks, ''] })}
-                              disabled={localConfig.websiteLinks.length >= getMaxLinks(plan)}
-                              className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Add URL (Max {getMaxLinks(plan)})
-                            </button>
-                          )}
-                        </div>
-                        <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-200 space-y-3 max-h-[220px] overflow-y-auto custom-scrollbar">
-                          {localConfig.websiteLinks.map((link, idx) => (
-                            <div key={idx} className="flex items-center space-x-2">
-                              <div className="relative flex-1 group">
-                                <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
-                                <input
-                                  type="url"
-                                  disabled={!isEditing}
-                                  value={link}
-                                  onChange={(e) => {
-                                    const newLinks = [...localConfig.websiteLinks];
-                                    newLinks[idx] = e.target.value;
-                                    setLocalConfig({ ...localConfig, websiteLinks: newLinks });
-                                  }}
-                                  className="w-full bg-white border border-slate-200 rounded-lg px-9 py-2 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all disabled:opacity-60"
-                                  placeholder="https://example.com/page"
-                                />
-                              </div>
-                              {isEditing && localConfig.websiteLinks.length > 1 && (
-                                <button 
-                                  onClick={() => {
-                                    const newLinks = localConfig.websiteLinks.filter((_, i) => i !== idx);
-                                    setLocalConfig({ ...localConfig, websiteLinks: newLinks });
-                                  }}
-                                  className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* System Instructions - Full Width Below */}
-                    <div className="lg:col-span-2 space-y-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">System Instructions & Behavior</label>
+                    <h4 className="font-bold text-slate-900">Identity & Persona</h4>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Website Name</label>
                       <div className="relative group">
-                        <ScrollText className="w-4 h-4 text-slate-400 absolute left-4 top-4 group-focus-within:text-indigo-500 transition-colors" />
-                        <textarea
+                        <Globe className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
+                        <input
+                          type="text"
                           disabled={!isEditing}
-                          value={localConfig.customInstructions}
-                          onChange={(e) => setLocalConfig({ ...localConfig, customInstructions: e.target.value })}
-                          rows={4}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-12 py-4 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed resize-none"
-                          placeholder="Describe how your agent should behave, its knowledge limits, and preferred interaction style..."
+                          value={localConfig.websiteName}
+                          onChange={(e) => setLocalConfig({ ...localConfig, websiteName: e.target.value })}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-10 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-100"
+                          placeholder="e.g. Acme Corp"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Agent Name</label>
+                      <div className="relative group">
+                        <Bot className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
+                        <input
+                          type="text"
+                          disabled={!isEditing}
+                          value={localConfig.agentName}
+                          onChange={(e) => setLocalConfig({ ...localConfig, agentName: e.target.value })}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-10 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-100"
+                          placeholder="e.g. Sarah"
                         />
                       </div>
                     </div>
                   </div>
-                </motion.div>
 
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Personality Tone</label>
+                    <div className="relative group">
+                      <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
+                      <input
+                        type="text"
+                        disabled={!isEditing}
+                        value={localConfig.personality}
+                        onChange={(e) => setLocalConfig({ ...localConfig, personality: e.target.value })}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-10 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-100"
+                        placeholder="e.g. Professional, Friendly, Witty"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Voice Profile</label>
+                      <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200 h-[42px]">
+                        <button
+                          disabled={!isEditing}
+                          onClick={() => setLocalConfig({ ...localConfig, voiceGender: 'female' })}
+                          className={`flex-1 rounded-lg text-xs font-bold transition-all ${
+                            localConfig.voiceGender === 'female'
+                              ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100'
+                              : 'text-slate-500 hover:text-slate-700'
+                          } disabled:opacity-50`}
+                        >
+                          Female
+                        </button>
+                        <button
+                          disabled={!isEditing}
+                          onClick={() => setLocalConfig({ ...localConfig, voiceGender: 'male' })}
+                          className={`flex-1 rounded-lg text-xs font-bold transition-all ${
+                            localConfig.voiceGender === 'male'
+                              ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100'
+                              : 'text-slate-500 hover:text-slate-700'
+                          } disabled:opacity-50`}
+                        >
+                          Male
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Language</label>
+                      <div className="relative group">
+                        <Languages className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <select
+                          disabled={!isEditing}
+                          value={localConfig.language}
+                          onChange={(e) => setLocalConfig({ ...localConfig, language: e.target.value })}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-10 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-100"
+                        >
+                          {TOP_100_LANGUAGES.map(lang => (
+                            <option key={lang} value={lang}>{lang}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visual Branding Card */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                  <div className="flex items-center space-x-3 pb-2 border-b border-slate-50">
+                    <div className="p-2 bg-pink-50 rounded-lg">
+                      <Palette className="w-5 h-5 text-pink-600" />
+                    </div>
+                    <h4 className="font-bold text-slate-900">Visual Branding</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Theme Color</label>
+                      <div className="flex flex-wrap gap-2">
+                        {['#4f46e5', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#000000'].map((color) => (
+                          <button
+                            key={color}
+                            disabled={!isEditing}
+                            onClick={() => setLocalConfig({ ...localConfig, themeColor: color })}
+                            className={`w-8 h-8 rounded-full border-2 transition-all ${
+                              localConfig.themeColor === color ? 'border-slate-900 scale-110 shadow-md' : 'border-transparent hover:scale-105'
+                            } disabled:opacity-50`}
+                            style={{ backgroundColor: color }}
+                            title={color}
+                          />
+                        ))}
+                        {isEditing && (
+                          <div className="relative w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden hover:border-slate-400 transition-colors">
+                            <input
+                              type="color"
+                              value={localConfig.themeColor || '#4f46e5'}
+                              onChange={(e) => setLocalConfig({ ...localConfig, themeColor: e.target.value })}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150"
+                            />
+                            <Plus className="w-3 h-3 text-slate-400" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Agent Icon</label>
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {localConfig.botIcon ? (
+                            <img src={localConfig.botIcon} alt="Agent Icon" className="w-full h-full object-cover" />
+                          ) : (
+                            <Bot className="w-6 h-6 text-slate-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="relative group">
+                            <ImageIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
+                            <input
+                              type="url"
+                              disabled={!isEditing}
+                              value={localConfig.botIcon || ''}
+                              onChange={(e) => setLocalConfig({ ...localConfig, botIcon: e.target.value })}
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-9 py-2 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all disabled:opacity-60"
+                              placeholder="Icon Image URL"
+                            />
+                          </div>
+                          {isEditing && (
+                            <label className="block">
+                              <span className="sr-only">Upload icon</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      setLocalConfig({ ...localConfig, botIcon: reader.result as string });
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                                className="block w-full text-[10px] text-slate-500 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Knowledge Card */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-indigo-50 rounded-lg">
+                        <Layout className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <h4 className="font-bold text-slate-900">Knowledge Sources</h4>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => setLocalConfig({ ...localConfig, websiteLinks: [...localConfig.websiteLinks, ''] })}
+                        disabled={localConfig.websiteLinks.length >= getMaxLinks(plan)}
+                        className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                      >
+                        Add URL (Max {getMaxLinks(plan)})
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {localConfig.websiteLinks.map((link, idx) => (
+                      <div key={idx} className="flex items-center space-x-2">
+                        <div className="relative flex-1 group">
+                          <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
+                          <input
+                            type="url"
+                            disabled={!isEditing}
+                            value={link}
+                            onChange={(e) => {
+                              const newLinks = [...localConfig.websiteLinks];
+                              newLinks[idx] = e.target.value;
+                              setLocalConfig({ ...localConfig, websiteLinks: newLinks });
+                            }}
+                            className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-9 py-2.5 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all disabled:opacity-60"
+                            placeholder="https://example.com/page"
+                          />
+                        </div>
+                        {isEditing && localConfig.websiteLinks.length > 1 && (
+                          <button 
+                            onClick={() => {
+                              const newLinks = localConfig.websiteLinks.filter((_, i) => i !== idx);
+                              setLocalConfig({ ...localConfig, websiteLinks: newLinks });
+                            }}
+                            className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Booking Card */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-emerald-50 rounded-lg">
+                        <Calendar className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900">Lead & Booking</h4>
+                        <p className="text-[10px] text-slate-500 font-medium">Enable appointment booking in chat.</p>
+                      </div>
+                    </div>
+                    <button
+                      disabled={!isEditing}
+                      onClick={() => setLocalConfig({ ...localConfig, bookingEnabled: !localConfig.bookingEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:ring-offset-2 ${
+                        localConfig.bookingEnabled ? 'bg-indigo-600' : 'bg-slate-200'
+                      } ${!isEditing ? 'opacity-40 cursor-not-allowed' : 'opacity-100 cursor-pointer hover:scale-105'}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          localConfig.bookingEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  
+                  {localConfig.bookingEnabled && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="space-y-3"
+                    >
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Booking System URL</label>
+                      <div className="relative group">
+                        <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors" />
+                        <input
+                          type="url"
+                          disabled={!isEditing}
+                          value={localConfig.bookingUrl || ''}
+                          onChange={(e) => setLocalConfig({ ...localConfig, bookingUrl: e.target.value })}
+                          className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-10 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all disabled:opacity-60"
+                          placeholder="https://calendly.com/your-link"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-medium italic ml-1">
+                        * Booking widget appears after lead information collection.
+                      </p>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Behavioral Core */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center space-x-3 pb-2 border-b border-slate-50">
+                    <div className="p-2 bg-purple-50 rounded-lg">
+                      <ScrollText className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <h4 className="font-bold text-slate-900">Behavioral Core & Instructions</h4>
+                  </div>
+                  <div className="relative group">
+                    <textarea
+                      disabled={!isEditing}
+                      value={localConfig.customInstructions}
+                      onChange={(e) => setLocalConfig({ ...localConfig, customInstructions: e.target.value })}
+                      rows={5}
+                      className="w-full bg-slate-50/30 border border-slate-200 rounded-xl px-5 py-4 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-100 resize-none leading-relaxed"
+                      placeholder="Describe how your agent should behave, its knowledge limits, and preferred interaction style..."
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </div>
         );
 
@@ -760,109 +916,6 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
                       </div>
                       <h5 className="text-sm font-bold text-slate-900 mb-1">Auto-Scaling</h5>
                       <p className="text-xs text-slate-500 font-medium">Handles unlimited concurrent users with intelligent load balancing.</p>
-                    </div>
-                  </div>
-                </motion.div>
-
-          </div>
-        );
-
-      case 'conversations':
-        return (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            
-<motion.div
-                  key="history"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-8"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900 tracking-tight">Conversation History</h3>
-                      <p className="text-slate-500 text-sm">Review text transcripts of your voice agent interactions.</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* List of conversations */}
-                    <div className="md:col-span-1 space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                      {conversations.length === 0 ? (
-                        <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          <History className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-                          <p className="text-slate-400 text-xs font-medium">No conversations yet</p>
-                        </div>
-                      ) : (
-                        conversations.map((conv) => (
-                          <button
-                            key={conv.id}
-                            onClick={() => setSelectedConversation(conv)}
-                            className={`w-full text-left p-4 rounded-xl border transition-all ${
-                              selectedConversation?.id === conv.id
-                                ? 'bg-indigo-50 border-indigo-200 shadow-sm'
-                                : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex justify-between items-start mb-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                {conv.createdAt?.toDate ? conv.createdAt.toDate().toLocaleDateString() : 'Just now'}
-                              </span>
-                              <ChevronRight className={`w-3 h-3 ${selectedConversation?.id === conv.id ? 'text-indigo-500' : 'text-slate-300'}`} />
-                            </div>
-                            <p className="text-xs font-bold text-slate-700 truncate mb-1">
-                              {conv.transcript.split('\n')[0].replace(/^(User|Agent): /, '') || 'Empty conversation'}
-                            </p>
-                            <span className="text-[10px] font-medium text-slate-400">
-                              {conv.createdAt?.toDate ? conv.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-
-                    {/* Transcript view */}
-                    <div className="md:col-span-2 bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-                      {selectedConversation ? (
-                        <>
-                          <div className="bg-white px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                            <h5 className="text-sm font-bold text-slate-900">Transcript Details</h5>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">
-                              {selectedConversation.createdAt?.toDate ? selectedConversation.createdAt.toDate().toLocaleString() : 'Just now'}
-                            </span>
-                          </div>
-                          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                            {selectedConversation.transcript.split('\n').filter(l => l.trim()).map((line, i) => {
-                              const isUser = line.startsWith('User:');
-                              const content = line.replace(/^(User|Agent): /, '');
-                              return (
-                                <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                                  <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
-                                    isUser 
-                                      ? 'bg-indigo-600 text-white rounded-tr-none' 
-                                      : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none shadow-sm'
-                                  }`}>
-                                    <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${isUser ? 'text-indigo-200' : 'text-slate-400'}`}>
-                                      {isUser ? 'User' : 'Agent'}
-                                    </div>
-                                    {content}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
-                          <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center mb-6">
-                            <ScrollText className="w-8 h-8 text-slate-300" />
-                          </div>
-                          <h5 className="text-sm font-bold text-slate-900 mb-2">Select a conversation</h5>
-                          <p className="text-xs text-slate-500 max-w-[240px]">
-                            Choose a session from the list to view the full text transcript.
-                          </p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </motion.div>

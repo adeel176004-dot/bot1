@@ -39,6 +39,10 @@ export interface VoiceGPTConfig {
   language?: string;
   personality?: string;
   userId?: string;
+  bookingEnabled?: boolean;
+  bookingUrl?: string;
+  themeColor?: string;
+  botIcon?: string;
 }
 
 declare global {

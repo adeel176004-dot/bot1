@@ -21,6 +21,10 @@ interface SupportAgentProps {
     voiceGender: string;
     language: string;
     personality: string;
+    bookingEnabled?: boolean;
+    bookingUrl?: string;
+    themeColor?: string;
+    botIcon?: string;
   };
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -76,6 +80,7 @@ export function SupportAgent({
 
   const [isRecording, setIsRecording] = useState(false);
   const [displayLink, setDisplayLink] = useState<{url: string, description: string} | null>(null);
+  const [showBooking, setShowBooking] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const inputAudioCtxRef = useRef<AudioContext | null>(null);
@@ -91,6 +96,9 @@ export function SupportAgent({
     }
   };
 
+  const currentThemeColor = config?.themeColor || (mode === 'standalone' ? window.VOICEGPT_CONFIG?.themeColor : null) || '#2563eb';
+  const currentBotIcon = config?.botIcon || (mode === 'standalone' ? window.VOICEGPT_CONFIG?.botIcon : null);
+
   const startRecording = async () => {
     if (isLimitReached) {
       alert("Usage limit reached for this agent. Please contact the administrator.");
@@ -104,8 +112,17 @@ export function SupportAgent({
       if (config) {
         const userId = propUserId || (mode === 'standalone' && window.VOICEGPT_CONFIG?.userId);
         queryParams = new URLSearchParams({
-          ...config,
-          websiteLinks: JSON.stringify(config.websiteLinks),
+          websiteName: config.websiteName || '',
+          agentName: config.agentName || '',
+          websiteLinks: JSON.stringify(config.websiteLinks || []),
+          customInstructions: config.customInstructions || '',
+          voiceGender: config.voiceGender || '',
+          language: config.language || '',
+          personality: config.personality || '',
+          bookingEnabled: String(config.bookingEnabled || false),
+          bookingUrl: config.bookingUrl || '',
+          themeColor: config.themeColor || '',
+          botIcon: config.botIcon || '',
           userId: userId || ''
         }).toString();
       } else if (mode === "standalone") {
@@ -183,6 +200,9 @@ export function SupportAgent({
         const msg = JSON.parse(event.data);
         if (msg.type === 'display_link') {
            setDisplayLink(msg.payload);
+        }
+        if (msg.type === 'display_booking') {
+           setShowBooking(true);
         }
         if (msg.audio) {
           playAudioChunk(outputAudioCtx, msg.audio);
@@ -290,6 +310,31 @@ export function SupportAgent({
         </button>
       </div>
       <div className="text-center">
+          {showBooking && config?.bookingUrl ? (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            >
+              <div className="bg-white w-full max-w-2xl h-[80vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="font-bold text-slate-900">Book an Appointment</h3>
+                  <button 
+                    onClick={() => setShowBooking(false)}
+                    className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <iframe 
+                  src={config.bookingUrl}
+                  className="w-full flex-1"
+                  frameBorder="0"
+                />
+              </div>
+            </motion.div>
+          ) : null}
+
           {isLimitReached ? (
             <div className="flex flex-col items-center text-red-500 gap-2">
               <AlertCircle className="w-6 h-6" />
@@ -354,8 +399,12 @@ export function SupportAgent({
             <div className="bg-white px-4 py-2 rounded-full shadow-lg ring-1 ring-slate-900/5 font-medium text-slate-700 whitespace-nowrap">
               Ask me!
             </div>
-            <div className="bg-blue-600 shadow-xl shadow-blue-500/20 text-white w-14 h-14 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
-              <Bot className="w-7 h-7" />
+            <div style={{ backgroundColor: currentThemeColor }} className="shadow-xl text-white w-14 h-14 rounded-full flex items-center justify-center transition-colors">
+              {currentBotIcon ? (
+                <img src={currentBotIcon} alt="Agent" className="w-8 h-8 rounded-full" />
+              ) : (
+                <Bot className="w-7 h-7" />
+              )}
             </div>
           </motion.div>
         )}
@@ -369,9 +418,13 @@ export function SupportAgent({
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="fixed bottom-6 right-6 z-50 w-[340px] bg-white rounded-3xl shadow-2xl ring-1 ring-slate-900/5 overflow-hidden flex flex-col"
           >
-            <div className="bg-blue-600 p-4 flex items-center justify-between">
+            <div style={{ backgroundColor: currentThemeColor }} className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-2 text-white">
-                <Bot className="w-6 h-6" />
+                {currentBotIcon ? (
+                  <img src={currentBotIcon} alt="Agent" className="w-6 h-6 rounded-full border border-white/20" />
+                ) : (
+                  <Bot className="w-6 h-6" />
+                )}
                 <span className="font-medium text-lg">Support Agent</span>
               </div>
               <button 

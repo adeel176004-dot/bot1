@@ -77,7 +77,7 @@ export function Pricing({ onSelectPlan }: PricingProps) {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="text-4xl md:text-5xl font-bold text-slate-900 mb-6 tracking-tight"
+            className="text-4xl md:text-5xl font-bold text-slate-900 mb-6 tracking-tight leading-tight md:leading-tight max-w-2xl mx-auto"
           >
             Choose the perfect plan for your business
           </motion.h2>

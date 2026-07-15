@@ -151,6 +151,8 @@ async function startServer() {
     var config = window.VOICEGPT_CONFIG || {};
     var websiteName = config.websiteName || 'Voice Agent';
     var agentName = config.agentName || 'Agent';
+    var themeColor = config.themeColor || "#2563eb";
+    var botIcon = config.botIcon || "";
     var serverOrigin = "${serverOrigin}";
     var origin = serverOrigin;
     
@@ -195,29 +197,34 @@ async function startServer() {
     var style = document.createElement('style');
     style.innerHTML = \`
         #voicegpt-vanilla-widget * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .av-fab { width: 60px; height: 60px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4); border: none; transition: transform 0.2s; z-index: 2147483647; position: absolute; bottom: 0; right: 0; pointer-events: auto; }
+        .av-fab { width: 60px; height: 60px; border-radius: 50%; background: \` + themeColor + \`; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: none; transition: transform 0.2s; z-index: 2147483647; position: absolute; bottom: 0; right: 0; pointer-events: auto; }
         .av-fab:hover { transform: scale(1.05); }
+        .av-fab img { width: 32px; height: 32px; border-radius: 50%; }
         .av-window { position: absolute; bottom: 80px; right: 0; width: 340px; height: 480px; background: white; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); display: none; flex-direction: column; overflow: hidden; border: 1px solid #e5e7eb; transition: opacity 0.3s; opacity: 0; transform: translateY(10px); z-index: 2147483647; pointer-events: auto; }
         .av-window.av-open { display: flex; opacity: 1; transform: translateY(0); }
-        .av-header { background: #1e40af; color: white; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
+        .av-header { background: \` + themeColor + \`; color: white; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
         .av-header-title { font-weight: 600; font-size: 16px; margin: 0; }
         .av-header-subtitle { font-size: 12px; opacity: 0.8; margin: 0; }
         .av-close { background: none; border: none; color: white; cursor: pointer; font-size: 20px; opacity: 0.8; padding: 0; margin: 0; }
         .av-close:hover { opacity: 1; }
         .av-body { flex: 1; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #f8fafc; overflow-y: auto; }
-        .av-avatar { width: 80px; height: 80px; border-radius: 50%; background: #e0e7ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(79,70,229,0.2); }
+        .av-avatar { width: 80px; height: 80px; border-radius: 50%; background: #e0e7ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
+        .av-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .av-status { font-size: 16px; font-weight: 500; color: #334155; margin-bottom: 8px; }
         .av-desc { font-size: 14px; color: #64748b; margin-bottom: 32px; }
-        .av-btn { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 9999px; font-weight: 600; font-size: 15px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.3); transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
-        .av-btn:hover { background: #1d4ed8; transform: translateY(-2px); }
+        .av-btn { background: \` + themeColor + \`; color: white; border: none; padding: 12px 24px; border-radius: 9999px; font-weight: 600; font-size: 15px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .av-btn:hover { opacity: 0.9; transform: translateY(-2px); }
         .av-btn.av-recording { background: #ef4444; box-shadow: 0 4px 12px rgba(239,68,68,0.4); animation: av-pulse 2s infinite; }
         @keyframes av-pulse { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 70% { box-shadow: 0 0 0 10px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
         .av-link-box { margin-top: 16px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; text-align: left; width: 100%; display: none; }
-        .av-link-box a { color: #2563eb; font-weight: 500; text-decoration: none; word-break: break-all; font-size: 14px; }
+        .av-link-box a { color: \` + themeColor + \`; font-weight: 500; text-decoration: none; word-break: break-all; font-size: 14px; }
         .av-link-box a:hover { text-decoration: underline; }
         .av-link-desc { font-size: 12px; color: #64748b; margin-top: 4px; }
     \`;
     document.head.appendChild(style);
+
+    var avatarContent = botIcon ? '<img src="' + botIcon + '" alt="Avatar">' : '🤖';
+    var fabContent = botIcon ? '<img src="' + botIcon + '" alt="Avatar">' : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
 
     container.innerHTML = \`
         <div class="av-window" id="av-window">
@@ -229,7 +236,7 @@ async function startServer() {
                 <button class="av-close" id="av-close">✕</button>
             </div>
             <div class="av-body">
-                <div class="av-avatar">🤖</div>
+                <div class="av-avatar">\` + avatarContent + \`</div>
                 <div class="av-status" id="av-status">Hi! How can I help?</div>
                 <div class="av-desc">Tap the button and start speaking.</div>
                 <button class="av-btn" id="av-start-btn">
@@ -242,9 +249,7 @@ async function startServer() {
                 </div>
             </div>
         </div>
-        <button class="av-fab" id="av-fab">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-        </button>
+        <button class="av-fab" id="av-fab">\` + fabContent + \`</button>
     \`;
 
     var fab = document.getElementById('av-fab');
@@ -588,6 +593,8 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
       const voiceGender = url.searchParams.get('voiceGender') || 'female';
       const language = url.searchParams.get('language') || 'English';
       const personality = url.searchParams.get('personality') || 'Friendly';
+      const bookingEnabled = url.searchParams.get('bookingEnabled') === 'true';
+      const bookingUrl = url.searchParams.get('bookingUrl') || '';
       const userId = url.searchParams.get('userId');
 
       let transcript = '';
@@ -647,6 +654,9 @@ Your tone should be consistently ${personality.toLowerCase()}. Be conversational
 If the user asks about a specific feature, offering, paid plan, pricing, or contact details, you MUST use the \`display_link\` tool to show them the relevant URL. Deduce the URL from the known pages (${websiteLinks.join(', ')}) if necessary.
 Once you call the tool, naturally tell the user that you've just put the link on their screen.
 
+${bookingEnabled && bookingUrl ? `CRITICAL: Booking is ENABLED for this website. If the user expresses interest in booking an appointment, scheduling a call, or meeting with a representative, you MUST first collect their name and email (if not already known), and then call the \`display_booking\` tool to show the booking widget.
+Booking System URL: ${bookingUrl}` : 'Booking is currently disabled.'}
+
 Website Data for Context (${websiteName}):
 ${websiteContext}
 
@@ -674,6 +684,14 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
                 },
                 required: ["url", "description"]
               }
+            }, {
+              name: "display_booking",
+              description: "Displays the booking/scheduling widget to the user so they can book an appointment directly.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {},
+                required: []
+              }
             }]
           }]
         },
@@ -694,6 +712,18 @@ ${customInstructions ? `Additional instructions from ${websiteName}: ${customIns
                               id: call.id,
                               name: call.name,
                               response: { result: "Link displayed to user successfully." }
+                          }]
+                      });
+                  } else if (call.name === "display_booking") {
+                      clientWs.send(JSON.stringify({
+                          type: "display_booking"
+                      }));
+                      
+                      session.sendToolResponse({
+                          functionResponses: [{
+                              id: call.id,
+                              name: call.name,
+                              response: { result: "Booking widget displayed to user successfully." }
                           }]
                       });
                   }

@@ -28,7 +28,7 @@ export function AdminPanel() {
             email: data.email || 'N/A',
             name: data.name || 'Unknown',
             plan: data.plan || 'free',
-            usage: data.usage || 0,
+            usage: data.totalMessages || 0,
             createdAt: data.createdAt,
           });
         });
@@ -100,32 +100,51 @@ export function AdminPanel() {
                   <th className="px-6 py-4 font-medium">Name</th>
                   <th className="px-6 py-4 font-medium">Email</th>
                   <th className="px-6 py-4 font-medium">Plan</th>
-                  <th className="px-6 py-4 font-medium">Usage (mins)</th>
+                  <th className="px-6 py-4 font-medium">Billing Cycle</th>
+                  <th className="px-6 py-4 font-medium">Remaining Messages</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
                       No users found.
                     </td>
                   </tr>
                 ) : (
-                  users.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-slate-900">{u.name}</td>
-                      <td className="px-6 py-4 text-slate-600">{u.email}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                          u.plan === 'premium' ? 'bg-indigo-100 text-indigo-800' : 
-                          u.plan === 'basic' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'
-                        }`}>
-                          {u.plan}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-slate-600">{u.usage}</td>
-                    </tr>
-                  ))
+                  users.map((u) => {
+                    const quotas: Record<string, number> = {
+                      free: 50,
+                      basic: 5000,
+                      pro: 5000,
+                      professional: 10000,
+                      premium: 10000,
+                      enterprise: 100000
+                    };
+                    const quota = quotas[u.plan] || 50;
+                    const remaining = Math.max(0, quota - u.usage);
+                    
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 font-medium text-slate-900">{u.name}</td>
+                        <td className="px-6 py-4 text-slate-600">{u.email}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                            u.plan === 'premium' ? 'bg-indigo-100 text-indigo-800' : 
+                            u.plan === 'basic' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'
+                          }`}>
+                            {u.plan}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600">
+                          {u.plan === 'free' ? 'Forever' : 'Monthly'}
+                        </td>
+                        <td className="px-6 py-4 text-slate-600 font-medium">
+                          {remaining.toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
