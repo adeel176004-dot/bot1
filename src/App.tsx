@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { pcmToBase64, base64ToPcm } from './lib/audioUtils';
-import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, ChevronLeft, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown, Layout, ShieldCheck, CheckCircle2, Search, Zap, Loader2, Type, ListFilter, SortAsc, RefreshCcw, Timer, LayoutDashboard, FileText, FilePlus, FileMinus, FileArchive, FileKey, FileUp, FileDown , FileEdit, Image as ImageIcon, FileImage, RotateCw, Droplet, Scissors, Hash, Plus} from 'lucide-react';
+import { Mic, MicOff, Stethoscope, Mail, Sparkles, X, Bot, ChevronRight, Clock, TrendingUp, Headset, Globe, Code, Copy, Check, MonitorPlay, Lock, Undo2, Redo2, Star, Quote, ChevronDown, Layout, ShieldCheck, CheckCircle2, Search, Zap, Loader2, Type, ListFilter, SortAsc, RefreshCcw, Timer, LayoutDashboard, FileText, FilePlus, FileMinus, FileArchive, FileKey, FileUp, FileDown , FileEdit, Image as ImageIcon, FileImage, RotateCw, Droplet, Scissors, Hash, Plus} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -56,8 +56,6 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState<'All' | 'Optimization' | 'Documentation' | 'Generative' | 'PDF Tools'>('All');
   const [visibleToolsCount, setVisibleToolsCount] = useState(12);
   const [isCreating, setIsCreating] = useState(false);
-  const [currentBuilderStep, setCurrentBuilderStep] = useState(1);
-  const totalSteps = 4;
   const [showDemo, setShowDemo] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
@@ -358,17 +356,6 @@ export default function App() {
       });
     }
   }, [user]);
-
-  const handleCreateAgent = () => {
-    const maxLinks = getMaxLinks(user?.plan);
-    const cleanedLinks = saasConfig.websiteLinks.filter(l => l.trim() !== '').slice(0, maxLinks);
-    setSaasConfig({ 
-      ...saasConfig, 
-      websiteLinks: cleanedLinks.length > 0 ? cleanedLinks : [''] 
-    });
-    setAppMode('agent');
-    setIsCreating(false);
-  };
 
   if (appMode === 'saas') {
     if (currentView === 'tools') {
@@ -1359,189 +1346,160 @@ export default function App() {
                   )}
                 </div>
            </div>
-        </header>        <main className="flex-1 bg-slate-50 min-h-screen pb-32 relative">
-          <div className="max-w-4xl mx-auto px-6 py-12 space-y-8">
-            {/* Header Section */}
-            <div className="flex items-center justify-between mb-10">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
+        </header>
+
+        <main className="flex-1 flex flex-col items-center justify-center py-10 md:py-16 px-6 relative overflow-hidden">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-100 blur-[100px] opacity-60 pointer-events-none" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-100 blur-[100px] opacity-60 pointer-events-none" />
+          
+          <div className="max-w-xl w-full z-10 bg-white p-10 md:p-12 rounded-[32px] shadow-xl ring-1 ring-slate-900/5 my-8">
+            <div className="flex flex-col items-center mb-10">
+               <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center ring-1 ring-blue-100 mb-6">
+                   <Sparkles className="w-8 h-8 text-blue-500" />
+               </div>
+               <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Create your voice agent</h1>
+               <p className="text-slate-500 mt-3 text-center text-lg">Configure your website's AI agent in seconds.</p>
+            </div>
+
+            <div className="space-y-4">
+               <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Website Name</label>
+                  <input 
+                     type="text" 
+                     value={saasConfig.websiteName}
+                     onChange={e => setSaasConfig({...saasConfig, websiteName: e.target.value})}
+                     placeholder="e.g. Acme Corp"
+                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
+                  />
+               </div>
+               <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Agent Name</label>
+                  <input 
+                     type="text" 
+                     value={saasConfig.agentName}
+                     onChange={e => setSaasConfig({...saasConfig, agentName: e.target.value})}
+                     placeholder="e.g. Sarah"
+                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
+                  />
+               </div>
+               <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Website Pages (Context for AI)</label>
+                  {saasConfig.websiteLinks.map((link, idx) => (
+                      <div key={idx} className="flex space-x-2 mb-2">
+                          <input 
+                              type="url" 
+                              value={link}
+                              onChange={e => {
+                                  const newLinks = [...saasConfig.websiteLinks];
+                                  newLinks[idx] = e.target.value;
+                                  setSaasConfig({...saasConfig, websiteLinks: newLinks});
+                              }}
+                              placeholder="e.g. https://example.com/about"
+                              className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed"
+                          />
+                          {saasConfig.websiteLinks.length > 1 && (
+                              <button 
+                                  onClick={() => {
+                                      const newLinks = saasConfig.websiteLinks.filter((_, i) => i !== idx);
+                                      setSaasConfig({...saasConfig, websiteLinks: newLinks});
+                                  }} 
+                                  className="px-4 py-3 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-colors"
+                              >
+                                  <X className="w-5 h-5"/>
+                              </button>
+                          )}
+                      </div>
+                  ))}
+                  <button 
+                      onClick={() => setSaasConfig({...saasConfig, websiteLinks: [...saasConfig.websiteLinks, '']})}
+                      disabled={saasConfig.websiteLinks.length >= getMaxLinks(user?.plan)}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 mt-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                      + Add another page link (Max {getMaxLinks(user?.plan)})
+                  </button>
+               </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Agent Studio</h1>
-                  <p className="text-slate-500 font-medium text-sm mt-1">Configure and deploy your voice agent in minutes.</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setIsCreating(false)}
-                className="flex items-center space-x-2 px-4 py-2 text-slate-400 hover:text-slate-900 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200 hover:shadow-sm"
-              >
-                <X className="w-5 h-5" />
-                <span className="text-sm font-bold">Exit Studio</span>
-              </button>
-            </div>
-
-            {/* Section 1: Identity & Persona */}
-            <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
-              <div className="px-8 py-6 border-b border-slate-50 flex items-center space-x-3 bg-slate-50/30">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900">Identity & Persona</h3>
-              </div>
-              <div className="p-8 space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Website Name</label>
-                    <div className="relative group">
-                      <Globe className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500 transition-colors" />
-                      <input 
-                        type="text" 
-                        value={saasConfig.websiteName}
-                        onChange={e => setSaasConfig({...saasConfig, websiteName: e.target.value})}
-                        placeholder="e.g. Acme Corp"
-                        className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-11 py-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Agent Name</label>
-                    <div className="relative group">
-                      <Bot className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500 transition-colors" />
-                      <input 
-                        type="text" 
-                        value={saasConfig.agentName}
-                        onChange={e => setSaasConfig({...saasConfig, agentName: e.target.value})}
-                        placeholder="e.g. Sarah"
-                        className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-11 py-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
-                      />
-                    </div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Voice Gender</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => setSaasConfig({...saasConfig, voiceGender: 'female'})}
+                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                        saasConfig.voiceGender === 'female' 
+                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
+                        <Bot className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <span className="font-medium">Female</span>
+                    </button>
+                    <button 
+                      onClick={() => setSaasConfig({...saasConfig, voiceGender: 'male'})}
+                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                        saasConfig.voiceGender === 'male' 
+                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-2">
+                        <Bot className="w-6 h-6 text-slate-600" />
+                      </div>
+                      <span className="font-medium">Male</span>
+                    </button>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Personality Tone</label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {['Friendly', 'Professional', 'Enthusiastic', 'Direct'].map(tone => (
-                      <button
-                        key={tone}
-                        onClick={() => setSaasConfig({...saasConfig, personality: tone})}
-                        className={`px-4 py-3 rounded-xl border-2 text-sm font-bold transition-all ${
-                          saasConfig.personality === tone 
-                          ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-sm' 
-                          : 'border-slate-100 bg-slate-50/30 text-slate-500 hover:border-slate-200'
-                        }`}
-                      >
-                        {tone}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="pt-4 space-y-6">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Voice Profile</label>
-                    <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-                      <button 
-                        onClick={() => setSaasConfig({...saasConfig, voiceGender: 'female'})}
-                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                          saasConfig.voiceGender === 'female' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                        }`}
-                      >
-                        Female Voice
-                      </button>
-                      <button 
-                        onClick={() => setSaasConfig({...saasConfig, voiceGender: 'male'})}
-                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                          saasConfig.voiceGender === 'male' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                        }`}
-                      >
-                        Male Voice
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Primary Language</label>
-                    <div className="relative">
-                      <Globe className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <select 
-                        value={saasConfig.language}
-                        onChange={(e) => setSaasConfig({...saasConfig, language: e.target.value})}
-                        className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-11 pr-10 py-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all appearance-none"
-                      >
-                        {TOP_100_LANGUAGES.map(lang => (
-                          <option key={lang} value={lang}>{lang}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Section 2: Visual Branding */}
-            <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
-              <div className="px-8 py-6 border-b border-slate-50 flex items-center space-x-3 bg-slate-50/30">
-                <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center">
-                  <Droplet className="w-5 h-5 text-pink-500" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900">Visual Branding</h3>
-              </div>
-              <div className="p-8 space-y-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Theme Color</label>
-                    <div className="flex flex-wrap gap-3">
-                      {['#4f46e5', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#111827'].map((color) => (
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Theme Color</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['#4f46e5', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#000000'].map((color) => (
                         <button
                           key={color}
                           onClick={() => setSaasConfig({ ...saasConfig, themeColor: color })}
-                          className={`w-10 h-10 rounded-full border-4 transition-all ${
-                            saasConfig.themeColor === color ? 'border-white scale-110 shadow-xl ring-2 ring-slate-900' : 'border-transparent hover:scale-105'
+                          className={`w-8 h-8 rounded-full border-2 transition-all ${
+                            saasConfig.themeColor === color ? 'border-slate-900 scale-110 shadow-md' : 'border-transparent hover:scale-105'
                           }`}
                           style={{ backgroundColor: color }}
+                          title={color}
                         />
                       ))}
-                      <div className="relative w-10 h-10 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden hover:border-blue-400 bg-slate-50 transition-colors">
+                      <div className="relative w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden hover:border-slate-400 transition-colors">
                         <input
                           type="color"
                           value={saasConfig.themeColor || '#4f46e5'}
                           onChange={(e) => setSaasConfig({ ...saasConfig, themeColor: e.target.value })}
                           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150"
                         />
-                        <Plus className="w-4 h-4 text-slate-300" />
+                        <Plus className="w-3 h-3 text-slate-400" />
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Agent Icon</label>
-                    <div className="flex items-center space-x-5">
-                      <div className="w-20 h-20 rounded-3xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm relative group">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Agent Icon</label>
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
                         {saasConfig.botIcon ? (
-                          <img src={saasConfig.botIcon} alt="Agent" className="w-full h-full object-cover" />
+                          <img src={saasConfig.botIcon} alt="Agent Icon" className="w-full h-full object-cover" />
                         ) : (
-                          <Bot className="w-8 h-8 text-slate-200" />
+                          <Bot className="w-6 h-6 text-slate-300" />
                         )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <ImageIcon className="w-6 h-6 text-white" />
-                        </div>
                       </div>
-                      <div className="flex-1 space-y-3">
+                      <div className="flex-1 space-y-2">
                         <div className="relative group">
-                          <ImageIcon className="w-3.5 h-3.5 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500" />
+                          <ImageIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500 transition-colors" />
                           <input
                             type="url"
                             value={saasConfig.botIcon || ''}
                             onChange={(e) => setSaasConfig({ ...saasConfig, botIcon: e.target.value })}
-                            className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-10 py-3 text-xs font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
-                            placeholder="Paste icon URL here..."
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-9 py-2 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                            placeholder="Icon Image URL"
                           />
                         </div>
-                        <label className="flex items-center justify-center space-x-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 cursor-pointer transition-all">
-                          <FileUp className="w-3.5 h-3.5 text-blue-500" />
-                          <span>Upload Image</span>
+                        <label className="block">
+                          <span className="sr-only">Upload icon</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -1555,112 +1513,73 @@ export default function App() {
                                 reader.readAsDataURL(file);
                               }
                             }}
-                            className="hidden"
+                            className="block w-full text-[10px] text-slate-500 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                           />
                         </label>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Section 3: Knowledge Sources */}
-            <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
-              <div className="px-8 py-6 border-b border-slate-50 flex items-center space-x-3 bg-slate-50/30">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-purple-600" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900">Knowledge Sources</h3>
-              </div>
-              <div className="p-8 space-y-6">
-                <p className="text-slate-500 text-sm font-medium">Add the URLs your agent should use to learn about your business.</p>
-                <div className="space-y-3">
-                  {saasConfig.websiteLinks.map((link, idx) => (
-                    <div key={idx} className="flex space-x-3 group">
-                      <div className="flex-1 relative">
-                        <Globe className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500" />
-                        <input 
-                          type="url" 
-                          value={link}
-                          onChange={e => {
-                            const newLinks = [...saasConfig.websiteLinks];
-                            newLinks[idx] = e.target.value;
-                            setSaasConfig({...saasConfig, websiteLinks: newLinks});
-                          }}
-                          placeholder="https://yourwebsite.com/about"
-                          className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-11 py-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
-                        />
-                      </div>
-                      {saasConfig.websiteLinks.length > 1 && (
-                        <button 
-                          onClick={() => {
-                            const newLinks = saasConfig.websiteLinks.filter((_, i) => i !== idx);
-                            setSaasConfig({...saasConfig, websiteLinks: newLinks});
-                          }} 
-                          className="p-4 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100"
-                        >
-                          <X className="w-5 h-5"/>
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button 
-                    onClick={() => setSaasConfig({...saasConfig, websiteLinks: [...saasConfig.websiteLinks, '']})}
-                    disabled={saasConfig.websiteLinks.length >= getMaxLinks(user?.plan)}
-                    className="flex items-center space-x-2 text-xs font-bold text-blue-600 hover:bg-blue-50 px-5 py-4 rounded-2xl transition-all border border-dashed border-blue-200 disabled:opacity-50"
+               <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Primary Language</label>
+                  <select 
+                    value={saasConfig.language}
+                    onChange={(e) => setSaasConfig({...saasConfig, language: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white text-slate-900"
                   >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Knowledge Link (Max {getMaxLinks(user?.plan)})</span>
-                  </button>
-                </div>
-              </div>
+                    {TOP_100_LANGUAGES.map(lang => (
+                      <option key={lang} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+               </div>
+
+               <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Agent Personality</label>
+                  <select 
+                    value={saasConfig.personality}
+                    onChange={(e) => setSaasConfig({...saasConfig, personality: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white text-slate-900"
+                  >
+                    {['Friendly', 'Professional', 'Concise', 'Enthusiastic', 'Empathetic', 'Witty', 'Direct'].map(tone => (
+                      <option key={tone} value={tone}>{tone}</option>
+                    ))}
+                  </select>
+               </div>
+
+               <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Custom Instructions (Optional)</label>
+                  <textarea 
+                     value={saasConfig.customInstructions}
+                     onChange={e => setSaasConfig({...saasConfig, customInstructions: e.target.value})}
+                     placeholder="e.g. Be very helpful and focus on pushing our premium plans."
+                     rows={3}
+                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed resize-none"
+                  />
+               </div>
             </div>
 
-            {/* Section 4: Behavioral Core */}
-            <div className="bg-white rounded-[32px] border border-slate-200/60 shadow-sm overflow-hidden">
-              <div className="px-8 py-6 border-b border-slate-50 flex items-center space-x-3 bg-slate-50/30">
-                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-orange-500" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900">Behavioral Core & Instructions</h3>
-              </div>
-              <div className="p-8">
-                <textarea 
-                  value={saasConfig.customInstructions}
-                  onChange={e => setSaasConfig({...saasConfig, customInstructions: e.target.value})}
-                  placeholder="Describe how your agent should behave, its knowledge limits, and preferred interaction style..."
-                  rows={6}
-                  className="w-full bg-slate-50/50 border border-slate-200 rounded-3xl px-6 py-5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none shadow-sm"
-                />
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-between pt-12 pb-20">
-              <button
-                onClick={() => setIsCreating(false)}
-                className="px-10 py-4 text-slate-500 hover:text-slate-900 text-sm font-bold transition-all rounded-2xl hover:bg-white border border-transparent hover:border-slate-200"
+            <div className="mt-8 space-y-3">
+              <button 
+                 onClick={() => {
+                   const maxLinks = getMaxLinks(user?.plan);
+                   const cleanedLinks = saasConfig.websiteLinks.filter(l => l.trim() !== '').slice(0, maxLinks);
+                   setSaasConfig({ 
+                     ...saasConfig, 
+                     websiteLinks: cleanedLinks.length > 0 ? cleanedLinks : [''] 
+                   });
+                   setAppMode('agent');
+                 }}
+                 disabled={!saasConfig.websiteName || !saasConfig.agentName || saasConfig.websiteLinks.every(l => !l.trim())}
+                 className="w-full bg-blue-500 text-white font-medium py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
               >
-                Cancel
+                 Create Voice Agent
               </button>
-              <button
-                onClick={() => {
-                  if (!saasConfig.websiteName || !saasConfig.agentName) {
-                    alert("Please provide at least a Website Name and Agent Name.");
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return;
-                  }
-                  handleCreateAgent();
-                }}
-                style={{ 
-                  backgroundColor: saasConfig.themeColor || '#2563eb',
-                  boxShadow: `0 20px 40px -12px ${saasConfig.themeColor}40`
-                }}
-                className="flex items-center space-x-3 text-white px-12 py-4 rounded-2xl font-bold text-sm hover:brightness-110 transition-all active:scale-95 shadow-xl"
+              <button 
+                 onClick={() => setIsCreating(false)}
+                 className="w-full bg-slate-100 text-slate-600 font-medium py-3 rounded-xl hover:bg-slate-200 transition-colors"
               >
-                <span>Launch Agent</span>
-                <Zap className="w-4 h-4 fill-white" />
+                 Cancel
               </button>
             </div>
           </div>
