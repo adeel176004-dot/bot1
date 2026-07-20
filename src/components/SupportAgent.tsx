@@ -88,6 +88,8 @@ export function SupportAgent({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const slowConnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSlowConnection, setIsSlowConnection] = useState(false);
 
   const toggleRecording = async () => {
     if (isRecording) {
@@ -199,6 +201,14 @@ export function SupportAgent({
         if (ws.readyState === WebSocket.OPEN) {
           const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
           ws.send(JSON.stringify({ audio: base64 }));
+          
+          if (!slowConnTimeoutRef.current) {
+            slowConnTimeoutRef.current = setTimeout(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                setIsSlowConnection(true);
+              }
+            }, 5000);
+          }
         }
       };
 
@@ -229,6 +239,11 @@ export function SupportAgent({
            setShowBooking(true);
         }
         if (msg.audio) {
+          if (slowConnTimeoutRef.current) {
+            clearTimeout(slowConnTimeoutRef.current);
+            slowConnTimeoutRef.current = null;
+          }
+          setIsSlowConnection(false);
           playAudioChunk(outputAudioCtx, msg.audio);
           
           // Log message to Firestore (only once per agent response)
@@ -281,6 +296,11 @@ export function SupportAgent({
   };
 
   const stopRecording = () => {
+    if (slowConnTimeoutRef.current) {
+      clearTimeout(slowConnTimeoutRef.current);
+      slowConnTimeoutRef.current = null;
+    }
+    setIsSlowConnection(false);
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = null;
@@ -377,7 +397,9 @@ export function SupportAgent({
               <p className="text-xs font-bold uppercase tracking-tight">Limit Reached</p>
             </div>
           ) : (
-            <p className="text-slate-600 font-medium">{isRecording ? "Listening..." : "Tap to start speaking"}</p>
+            <p className={`font-medium ${isSlowConnection ? 'text-amber-500 animate-pulse' : 'text-slate-600'}`}>
+              {isSlowConnection ? "Slow Connection..." : (isRecording ? "Listening..." : "Tap to start speaking")}
+            </p>
           )}
       </div>
 

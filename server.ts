@@ -345,6 +345,9 @@ async function startServer() {
     var isRecording = false;
     var isLimitReached = false;
     var ws = null;
+    var lastAudioSent = 0;
+    var slowConnectionWarning = false;
+    var slowConnTimeout = null;
     var inputAudioCtx = null;
     var outputAudioCtx = null;
     var mediaStream = null;
@@ -491,7 +494,18 @@ async function startServer() {
                 if (!ws || ws.readyState !== WebSocket.OPEN) return;
                 var inputData = e.inputBuffer.getChannelData(0);
                 var base64Data = pcmToBase64(inputData);
+                lastAudioSent = Date.now();
                 ws.send(JSON.stringify({ audio: base64Data }));
+                
+                if (!slowConnTimeout) {
+                    slowConnTimeout = setTimeout(function() {
+                        if (isRecording && !slowConnectionWarning) {
+                            slowConnectionWarning = true;
+                            statusText.innerText = 'Slow Connection...';
+                            statusText.style.color = '#f59e0b';
+                        }
+                    }, 5000);
+                }
             };
             
             source.connect(processor);
@@ -542,6 +556,13 @@ async function startServer() {
                         linkDesc.innerText = msg.payload.description;
                     }
                     if (msg.audio) {
+                        clearTimeout(slowConnTimeout);
+                        slowConnTimeout = null;
+                        if (slowConnectionWarning) {
+                            slowConnectionWarning = false;
+                            statusText.innerText = 'Listening...';
+                            statusText.style.color = '#10b981';
+                        }
                         playAudioChunk(outputAudioCtx, msg.audio);
                         
                         if (!responseLogged) {
