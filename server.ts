@@ -8,7 +8,7 @@ import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
 import * as http from 'http';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
@@ -23,26 +23,37 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true }));
   
   // Initialize Firebase Admin
+  let firebaseApp: any = null;
   if (getApps().length === 0) {
     console.log('[FIREBASE] Initializing Admin SDK...');
     try {
-      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-      if (fs.existsSync(configPath)) {
-        const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        console.log('[FIREBASE] Using config from firebase-applet-config.json', { projectId: firebaseConfig.projectId });
-        initializeApp({
-          projectId: firebaseConfig.projectId
+      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        console.log('[FIREBASE] Using service account from FIREBASE_SERVICE_ACCOUNT env var');
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        firebaseApp = initializeApp({
+          credential: cert(serviceAccount),
+          projectId: serviceAccount.project_id
         });
       } else {
-        console.log('[FIREBASE] Config file not found, using default initialization');
-        initializeApp();
+        const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+        if (fs.existsSync(configPath)) {
+          const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          console.log('[FIREBASE] Using config from firebase-applet-config.json', { projectId: firebaseConfig.projectId });
+          firebaseApp = initializeApp({
+            projectId: firebaseConfig.projectId
+          });
+        } else {
+          console.log('[FIREBASE] Config file not found, using default initialization');
+          firebaseApp = initializeApp();
+        }
       }
     } catch (err) {
       console.error('[FIREBASE] Error initializing Firebase app:', err);
     }
+  } else {
+    firebaseApp = getApps()[0];
   }
 
-  const firebaseApp = getApps()[0];
   let firestoreDatabaseId: string | undefined;
   try {
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -54,8 +65,49 @@ async function startServer() {
     console.error('[FIREBASE] Error reading databaseId from config:', err);
   }
 
-  const adminDb = getFirestore(firebaseApp, firestoreDatabaseId);
-  const adminAuth = getAuth();
+  let adminDb: any;
+  if (firebaseApp) {
+    try {
+      adminDb = getFirestore(firebaseApp, firestoreDatabaseId);
+    } catch (err) {
+      console.error('[FIREBASE] Error creating Firestore instance from active app:', err);
+    }
+  }
+
+  if (!adminDb) {
+    console.warn('[FIREBASE] Firestore Admin is not fully initialized. Creating a non-crashing safe proxy fallback.');
+    
+    // Create a recursive proxy that throws/rejects only when queries are triggered
+    const createErrorProxy = (path: string[] = []): any => {
+      const targetFn = () => {};
+      return new Proxy(targetFn, {
+        get(target, prop) {
+          if (typeof prop === 'string') {
+            if (prop === 'then') {
+              return (resolve: any, reject: any) => reject(new Error('Firestore Admin is not initialized. Please set the FIREBASE_SERVICE_ACCOUNT environment variable on Render.'));
+            }
+            return createErrorProxy([...path, prop]);
+          }
+          return undefined;
+        },
+        apply(target, thisArg, argumentsList) {
+          const lastProp = path[path.length - 1];
+          if (['get', 'set', 'update', 'add', 'delete'].includes(lastProp)) {
+            return Promise.reject(new Error('Firestore Admin is not initialized. Please set the FIREBASE_SERVICE_ACCOUNT environment variable on Render.'));
+          }
+          return createErrorProxy(path);
+        }
+      });
+    };
+    adminDb = createErrorProxy();
+  }
+
+  let adminAuth: any;
+  try {
+    adminAuth = firebaseApp ? getAuth(firebaseApp) : null;
+  } catch (err) {
+    console.error('[FIREBASE] Error initializing Auth Admin:', err);
+  }
   
   // Global CORS and security headers
   app.use((req, res, next) => {
@@ -998,7 +1050,11 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
   });
 
 
-  if (process.env.NODE_ENV !== 'production') {
+  const isProduction = process.env.NODE_ENV === 'production' || 
+                       !process.argv.some(arg => arg.includes('server.ts')) ||
+                       fs.existsSync(path.join(process.cwd(), 'dist/index.html'));
+
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
