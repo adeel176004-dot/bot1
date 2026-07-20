@@ -87,6 +87,7 @@ export function SupportAgent({
   const outputAudioCtxRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const nextStartTimeRef = useRef<number>(0);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const toggleRecording = async () => {
     if (isRecording) {
@@ -174,11 +175,17 @@ export function SupportAgent({
       wsRef.current = ws;
 
       const inputAudioCtx = new AudioContext({ sampleRate: 16000 });
+      await inputAudioCtx.resume();
       inputAudioCtxRef.current = inputAudioCtx;
       
       const outputAudioCtx = new AudioContext({ sampleRate: 24000 });
+      await outputAudioCtx.resume();
       outputAudioCtxRef.current = outputAudioCtx;
       nextStartTimeRef.current = 0;
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Your browser does not support microphone access.");
+      }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -193,6 +200,23 @@ export function SupportAgent({
           const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
           ws.send(JSON.stringify({ audio: base64 }));
         }
+      };
+
+      // Heartbeat to keep connection alive
+      heartbeatIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 10000);
+
+      ws.onclose = () => {
+        console.log("WebSocket closed");
+        stopRecording();
+      };
+
+      ws.onerror = (err) => {
+        console.error("WebSocket error:", err);
+        stopRecording();
       };
 
       let responseLogged = false;
@@ -228,9 +252,17 @@ export function SupportAgent({
       };
       
       setIsRecording(true);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to start recording:", e);
-      alert("Failed to access microphone. Please check permissions.");
+      let msg = "Failed to access microphone. ";
+      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        msg += "Permission was denied. Please allow microphone access in your browser settings.";
+      } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+        msg += "No microphone found on your device.";
+      } else {
+        msg += e.message || "Please check your browser permissions.";
+      }
+      alert(msg);
     }
   };
 
@@ -249,6 +281,10 @@ export function SupportAgent({
   };
 
   const stopRecording = () => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;

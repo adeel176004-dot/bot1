@@ -137,6 +137,8 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
             setPlan(data.plan as any);
           }
         }
+      }, (err) => {
+        console.error("[FIRESTORE] User snapshot error:", err);
       });
 
       // Also load agent data
@@ -149,6 +151,8 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
             onUpdateConfig?.(data.config);
           }
         }
+      }, (err) => {
+        console.error("[FIRESTORE] Agent snapshot error:", err);
       });
 
       return () => {
@@ -178,6 +182,8 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
           return timeB - timeA;
         });
         setConversations(convs);
+      }, (err) => {
+        console.error("[FIRESTORE] Conversation snapshot error:", err);
       });
       
       return () => unsub();

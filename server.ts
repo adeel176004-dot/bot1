@@ -16,33 +16,30 @@ import { getAuth } from 'firebase-admin/auth';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
   
   // Initialize Firebase Admin
   if (getApps().length === 0) {
-    console.log('[FIREBASE] Initializing Admin SDK with explicit project ID...');
+    console.log('[FIREBASE] Initializing Admin SDK...');
     try {
-      initializeApp({
-        projectId: 'gen-lang-client-0676055838'
-      });
+      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+      if (fs.existsSync(configPath)) {
+        const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        console.log('[FIREBASE] Using config from firebase-applet-config.json', { projectId: firebaseConfig.projectId });
+        initializeApp({
+          projectId: firebaseConfig.projectId
+        });
+      } else {
+        console.log('[FIREBASE] Config file not found, using default initialization');
+        initializeApp();
+      }
     } catch (err) {
       console.error('[FIREBASE] Error initializing Firebase app:', err);
     }
   }
 
-  const DB_ID = 'ai-studio-voiceagentbuilde-49d60089-d04c-4ee8-a68c-15f8844a9979';
-  let adminDb: FirebaseFirestore.Firestore;
-  
-  // Try initializing with the named database first
   const firebaseApp = getApps()[0];
-  const namedDb = getFirestore(firebaseApp, DB_ID);
-  
-  // Test named database connection/permissions with a small operation if possible
-  // Since we can't easily "test" without a call, we'll use a safer approach:
-  // We'll wrap the OTP operations in a try-catch that can fallback to default DB if it hits PERMISSION_DENIED
-  adminDb = namedDb;
-  console.log(`[FIREBASE] Defaulting to named database: ${DB_ID}`);
-
+  const adminDb = getFirestore(firebaseApp);
   const adminAuth = getAuth();
   
   // Global CORS and security headers
@@ -470,6 +467,8 @@ async function startServer() {
             ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
             
             var AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) throw new Error("Your browser does not support audio recording.");
+
             inputAudioCtx = new AudioContext({ sampleRate: 16000 });
             outputAudioCtx = new AudioContext({ sampleRate: 24000 });
             
@@ -477,6 +476,10 @@ async function startServer() {
             await outputAudioCtx.resume();
             
             nextStartTime = 0;
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("Your browser does not support microphone access.");
+            }
 
             mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             log("Microphone access granted");
@@ -502,7 +505,12 @@ async function startServer() {
               startBtn.classList.add('av-recording');
               btnText.innerText = 'Stop Speaking';
               
-              // Send context after connection to avoid URL length limits
+              heartbeatInterval = setInterval(function() {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'ping' }));
+                }
+              }, 10000);
+              
               if (document && document.body) {
                   var context = document.body.innerText.substring(0, 3000);
                   ws.send(JSON.stringify({ type: 'context', payload: context }));
@@ -526,6 +534,7 @@ async function startServer() {
             ws.onmessage = function(event) {
                 try {
                     var msg = JSON.parse(event.data);
+                    if (msg.type === 'pong') return;
                     if (msg.type === 'display_link') {
                         linkBox.style.display = 'block';
                         linkUrl.href = msg.payload.url;
@@ -556,12 +565,25 @@ async function startServer() {
             
         } catch(e) {
             log("Failed to start voice:", e);
-            statusText.innerText = 'Microphone access denied.';
+            if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+              statusText.innerText = 'Microphone permission denied.';
+              alert("Microphone permission was denied. Please allow it in your browser settings.");
+            } else {
+              statusText.innerText = 'Microphone access error.';
+              alert("Microphone access failed: " + (e.message || "Unknown error"));
+            }
+            stopRecording();
         }
     }
 
+    var heartbeatInterval = null;
+
     function stopRecording() {
         log("Stopping recording...");
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+        }
         if (ws) { 
           try { ws.close(); } catch(e) {}
           ws = null; 
@@ -665,7 +687,7 @@ ${storedKnowledge || 'No specific stored knowledge available.'}
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
         const response = await ai.models.generateContent({
-            model: "gemini-1.5-flash",
+            model: "gemini-3.5-flash",
             contents: [{ role: 'user', parts: [{ text: message || "Hello" }] }],
             config: {
                 systemInstruction: systemPrompt,
@@ -835,7 +857,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
             config: {
               responseModalities: [Modality.AUDIO],
               speechConfig: {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Aoede' } },
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Zephyr' } },
               },
               systemInstruction: { parts: [{ text: systemPrompt }] },
               tools: [{
@@ -891,8 +913,15 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
             },
           });
           
-          // Do not flush buffered audio as sending too many chunks crashes the socket
+          // Flush buffered audio
+          if (audioBuffer.length > 0) {
+            console.log(`[SERVER] Flushing ${audioBuffer.length} buffered audio chunks`);
+            for (const chunk of audioBuffer) {
+              session.sendRealtimeInput({ audio: { data: chunk, mimeType: "audio/pcm;rate=16000" } });
+            }
+          }
           audioBuffer = [];
+          
           session.sendClientContent({ turns: [{ role: "user", parts: [{ text: "Hello! Please greet me briefly." }] }], turnComplete: true });
         } catch (err) {
           console.error("Failed to connect to Live API:", err);
@@ -906,6 +935,10 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
       clientWs.on("message", async (data: any) => {
         try {
            const parsed = JSON.parse(data.toString());
+           if (parsed.type === 'ping') {
+             clientWs.send(JSON.stringify({ type: 'pong' }));
+             return;
+           }
            if (parsed.type === 'context') {
              clearTimeout(contextTimeout);
              await initSession(parsed.payload);
