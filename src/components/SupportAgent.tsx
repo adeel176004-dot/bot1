@@ -221,13 +221,17 @@ export function SupportAgent({
         }
       }, 10000);
 
-      ws.onclose = () => {
-        console.log("WebSocket closed");
+      ws.onclose = (event: CloseEvent) => {
+        console.log("WebSocket closed", event);
+        if (event.code !== 1000 && event.code !== 1001) {
+          setErrorMsg(`Connection closed (Code: ${event.code}${event.reason ? `, Reason: ${event.reason}` : ''}). If your server is hosted in Europe/UK, please ensure your Render backend is hosted in a US region (such as Oregon) to bypass Gemini Live API geographic restrictions.`);
+        }
         stopRecording();
       };
 
       ws.onerror = (err) => {
         console.error("WebSocket error:", err);
+        setErrorMsg("WebSocket connection error. Make sure your server is running and supports WebSockets.");
         stopRecording();
       };
 

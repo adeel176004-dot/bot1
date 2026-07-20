@@ -49,6 +49,7 @@ export default function App() {
   }
 
   const [isRecording, setIsRecording] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [appMode, setAppMode] = useState<'saas' | 'agent'>('saas');
   const [currentView, setCurrentView] = useState<'landing' | 'tools' | 'features' | 'pricing' | 'admin' | 'analytics'>('landing');
@@ -97,6 +98,7 @@ export default function App() {
   };
 
   const startRecording = async () => {
+    setErrorMsg(null);
     // Check limit first
     const limit = user?.plan === 'enterprise' ? Infinity : (user?.plan === 'pro' ? 10000 : 50);
     if (userStats.totalMessages >= limit) {
@@ -149,10 +151,29 @@ export default function App() {
         const context = document.body.innerText.substring(0, 3000);
         ws.send(JSON.stringify({ type: 'context', payload: context }));
       };
+
+      ws.onclose = (event: CloseEvent) => {
+        console.log("WebSocket closed", event);
+        if (event.code !== 1000 && event.code !== 1001) {
+          setErrorMsg(`Connection closed (Code: ${event.code}${event.reason ? `, Reason: ${event.reason}` : ''}). If your server is hosted in Europe/UK, please ensure your Render backend is hosted in a US region (such as Oregon) to bypass Gemini Live API geographic restrictions.`);
+        }
+        stopRecording();
+      };
+
+      ws.onerror = (err) => {
+        console.error("WebSocket error:", err);
+        setErrorMsg("WebSocket connection error. Make sure your server is running and supports WebSockets.");
+        stopRecording();
+      };
       
       let responseLogged = false;
       ws.onmessage = async (event) => {
         const msg = JSON.parse(event.data);
+        if (msg.error) {
+          setErrorMsg(msg.error);
+          stopRecording();
+          return;
+        }
         if (msg.type === 'display_link') {
            setDisplayLink(msg.payload);
         }
@@ -1921,6 +1942,11 @@ export default function App() {
                  )}
              </AnimatePresence>
          </div>
+         {errorMsg && (
+             <div className="mt-4 max-w-md text-center bg-red-50 text-red-600 rounded-2xl p-4 border border-red-100 text-xs leading-relaxed font-medium">
+                 {errorMsg}
+             </div>
+         )}
 
           <AnimatePresence>
               {displayLink && (

@@ -934,73 +934,90 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
           if (!process.env.GEMINI_API_KEY) {
             throw new Error("GEMINI_API_KEY is not configured in your Render environment variables. Please add GEMINI_API_KEY in your Render dashboard settings under Environment.");
           }
-          session = await ai.live.connect({
-            model: "gemini-3.1-flash-live-preview",
-            config: {
-              responseModalities: [Modality.AUDIO],
-              speechConfig: {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Zephyr' } },
-              },
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              tools: [{
-                functionDeclarations: [{
-                  name: "display_link",
-                  description: "Displays a relevant URL to the user.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      url: { type: Type.STRING },
-                      description: { type: Type.STRING }
-                    },
-                    required: ["url", "description"]
-                  }
-                }, {
-                  name: "display_booking",
-                  description: "Displays the booking widget.",
-                  parameters: { type: Type.OBJECT, properties: {}, required: [] }
-                }]
-              }]
-            },
-            callbacks: {
-              onopen: () => {
-                console.log("\nLive API OPENED");
-              },
-              onerror: (err: any) => {
-                const errMsg = err?.message || String(err);
-                console.log("\nLive API ERROR: " + errMsg);
-                try {
-                  clientWs.send(JSON.stringify({ error: `Live API Error: ${errMsg}` }));
-                } catch (e) {}
-              },
-              onclose: (err: any) => {
-                console.log("\nLive API CLOSED: " + JSON.stringify(err));
-                try {
-                  clientWs.send(JSON.stringify({ error: "Live API session closed by Google servers." }));
-                } catch (e) {}
-              },
-              onmessage: (message: LiveServerMessage) => {
-                console.log("\nRECEIVED MSG: " + JSON.stringify(Object.keys(message || {})));
-                if (message.toolCall) {
-                   const functionCalls = message.toolCall.functionCalls;
-                   if (functionCalls && functionCalls.length > 0) {
-                      const call = functionCalls[0];
-                      if (call.name === "display_link") {
-                          clientWs.send(JSON.stringify({ type: "display_link", payload: call.args }));
-                          session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
-                      } else if (call.name === "display_booking") {
-                          clientWs.send(JSON.stringify({ type: "display_booking" }));
-                          session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
+          const modelsToTry = ["gemini-3.1-flash-live-preview", "gemini-2.5-flash", "gemini-2.0-flash-exp"];
+          let lastError: any = null;
+          for (const modelName of modelsToTry) {
+            try {
+              console.log(`[SERVER] Attempting to connect to Live API using model: ${modelName}`);
+              session = await ai.live.connect({
+                model: modelName,
+                config: {
+                  responseModalities: [Modality.AUDIO],
+                  speechConfig: {
+                    voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Zephyr' } },
+                  },
+                  systemInstruction: { parts: [{ text: systemPrompt }] },
+                  tools: [{
+                    functionDeclarations: [{
+                      name: "display_link",
+                      description: "Displays a relevant URL to the user.",
+                      parameters: {
+                        type: Type.OBJECT,
+                        properties: {
+                          url: { type: Type.STRING },
+                          description: { type: Type.STRING }
+                        },
+                        required: ["url", "description"]
                       }
-                   }
-                }
-                const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-                if (audio) clientWs.send(JSON.stringify({ audio }));
-                const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
-                if (text) transcript += `Agent: ${text}\n`;
-                if (message.serverContent?.interrupted) clientWs.send(JSON.stringify({ interrupted: true }));
-              },
-            },
-          });
+                    }, {
+                      name: "display_booking",
+                      description: "Displays the booking widget.",
+                      parameters: { type: Type.OBJECT, properties: {}, required: [] }
+                    }]
+                  }]
+                },
+                callbacks: {
+                  onopen: () => {
+                    console.log(`\nLive API OPENED with model ${modelName}`);
+                  },
+                  onerror: (err: any) => {
+                    const errMsg = err?.message || String(err);
+                    console.log(`\nLive API ERROR (${modelName}): ` + errMsg);
+                    try {
+                      clientWs.send(JSON.stringify({ error: `Live API Error (${modelName}): ${errMsg}` }));
+                    } catch (e) {}
+                  },
+                  onclose: (err: any) => {
+                    console.log(`\nLive API CLOSED (${modelName}): ` + JSON.stringify(err));
+                    try {
+                      clientWs.send(JSON.stringify({ error: `Live API session closed by Google servers (${modelName}).` }));
+                    } catch (e) {}
+                  },
+                  onmessage: (message: LiveServerMessage) => {
+                    console.log("\nRECEIVED MSG: " + JSON.stringify(Object.keys(message || {})));
+                    if (message.toolCall) {
+                       const functionCalls = message.toolCall.functionCalls;
+                       if (functionCalls && functionCalls.length > 0) {
+                          const call = functionCalls[0];
+                          if (call.name === "display_link") {
+                              clientWs.send(JSON.stringify({ type: "display_link", payload: call.args }));
+                              session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
+                          } else if (call.name === "display_booking") {
+                              clientWs.send(JSON.stringify({ type: "display_booking" }));
+                              session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
+                          }
+                       }
+                    }
+                    const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+                    if (audio) clientWs.send(JSON.stringify({ audio }));
+                    const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
+                    if (text) transcript += `Agent: ${text}\n`;
+                    if (message.serverContent?.interrupted) clientWs.send(JSON.stringify({ interrupted: true }));
+                  },
+                },
+              });
+              console.log(`[SERVER] Successfully connected to Live API using model: ${modelName}`);
+              lastError = null;
+              break;
+            } catch (err: any) {
+              console.warn(`[SERVER] Failed to connect using model ${modelName}:`, err?.message || err);
+              lastError = err;
+            }
+          }
+
+          if (lastError) {
+            throw lastError;
+          }
           
           // Flush buffered audio
           if (audioBuffer.length > 0) {
