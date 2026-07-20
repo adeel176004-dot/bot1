@@ -143,6 +143,13 @@ export default function App() {
         }
       };
 
+      ws.onopen = () => {
+        setIsRecording(true);
+        // Send context after connection
+        const context = document.body.innerText.substring(0, 3000);
+        ws.send(JSON.stringify({ type: 'context', payload: context }));
+      };
+      
       let responseLogged = false;
       ws.onmessage = async (event) => {
         const msg = JSON.parse(event.data);

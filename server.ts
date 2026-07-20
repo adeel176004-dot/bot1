@@ -44,26 +44,24 @@ async function startServer() {
   console.log(`[FIREBASE] Defaulting to named database: ${DB_ID}`);
 
   const adminAuth = getAuth();
-
-  app.use(cors({ origin: '*' }));
-  app.options('*', cors({ origin: '*' }));
   
-  // Logging middleware for troubleshooting
+  // Global CORS and security headers
   app.use((req, res, next) => {
-    console.log(`[SERVER] ${req.method} ${req.url}`);
-    next();
-  });
-
-  app.get('/health', (req, res) => res.status(200).send('OK'));
-
-  app.use((req, res, next) => {
-    res.removeHeader('X-Frame-Options'); // Allow iframe embedding
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.removeHeader('X-Frame-Options');
     res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
     next();
   });
+  
+  app.use(cors({ origin: '*' }));
 
   app.get('/api/usage-status/:userId', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
     try {
       const { userId } = req.params;
       const userDoc = await adminDb.collection('users').doc(userId).get();
@@ -122,6 +120,11 @@ async function startServer() {
         serverOrigin = serverOrigin.replace('http:', 'https:');
       }
 
+      // Fallback for production if detection fails
+      if (!serverOrigin || serverOrigin.includes('example.com')) {
+          serverOrigin = 'https://bot1-yruh.onrender.com';
+      }
+
       const js = `
 (function() {
   var debug = true;
@@ -154,17 +157,18 @@ async function startServer() {
     var agentName = config.agentName || 'Agent';
     var themeColor = config.themeColor || "#2563eb";
     var botIcon = config.botIcon || "";
-    var serverOrigin = "${serverOrigin}";
-    var origin = serverOrigin;
+    var origin = "${serverOrigin}";
     
+    // Try to detect origin from the current script tag if possible
     try {
         var scripts = document.getElementsByTagName('script');
         for (var i = 0; i < scripts.length; i++) {
             var s = scripts[i];
-            if (s.src && (s.src.indexOf('/vagent.js') !== -1 || s.src.indexOf('ais-') !== -1)) {
+            if (s.src && (s.src.indexOf('/vagent.js') !== -1)) {
                 var scriptUrl = new URL(s.src);
-                if (!origin || origin.indexOf('localhost') !== -1 || origin.indexOf('127.0.0.1') !== -1 || origin === "" || origin.indexOf('example.com') !== -1) {
-                    origin = scriptUrl.origin;
+                var scriptOrigin = scriptUrl.origin;
+                if (scriptOrigin && scriptOrigin.indexOf('localhost') === -1 && scriptOrigin.indexOf('example.com') === -1) {
+                    origin = scriptOrigin;
                     log("Detected origin from script tag:", origin);
                 }
                 break;
@@ -172,7 +176,13 @@ async function startServer() {
         }
     } catch(e) { log("Error detecting origin:", e); }
 
-    if (!origin || origin === "null") origin = window.location.origin;
+    log("Using origin:", origin);
+    
+    // Final fallback
+    if (!origin || origin === "null" || origin.indexOf('example.com') !== -1) {
+        origin = window.location.origin;
+        log("Falling back to window.location.origin:", origin);
+    }
     // Strip trailing slash
     if (origin.endsWith('/')) origin = origin.slice(0, -1);
     
@@ -396,9 +406,6 @@ async function startServer() {
             if (linksObj && linksObj.length > 0) {
                 paramsObj.websiteLinks = JSON.stringify(linksObj);
             }
-            if (document && document.body) {
-                paramsObj.websiteContext = document.body.innerText.substring(0, 5000);
-            }
             var urlParams = new URLSearchParams(paramsObj).toString();
             
             var wsProtocol = origin.startsWith('https') ? 'wss://' : 'ws://';
@@ -440,6 +447,12 @@ async function startServer() {
               statusText.innerText = 'Listening...';
               startBtn.classList.add('av-recording');
               btnText.innerText = 'Stop Speaking';
+              
+              // Send context after connection to avoid URL length limits
+              if (document && document.body) {
+                  var context = document.body.innerText.substring(0, 3000);
+                  ws.send(JSON.stringify({ type: 'context', payload: context }));
+              }
             };
             
             ws.onerror = function(e) {
@@ -555,7 +568,6 @@ async function startServer() {
   });
 
   app.post('/api/chat', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
     try {
         if (!process.env.GEMINI_API_KEY) {
              console.error("GEMINI_API_KEY is missing");
@@ -638,7 +650,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
   });
 
   const wss = new WebSocketServer({ server, path: '/live' });
-  
+
   const interval = setInterval(() => {
     wss.clients.forEach((ws: any) => {
       if (ws.isAlive === false) return ws.terminate();
@@ -648,13 +660,13 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
   }, 30000);
 
   wss.on('connection', async (clientWs: any, req) => {
+    console.log(`[SERVER] New WebSocket connection from ${req.socket.remoteAddress}`);
     clientWs.isAlive = true;
     clientWs.on('pong', () => { clientWs.isAlive = true; });
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
       const websiteName = url.searchParams.get('websiteName') || 'Acme Corp';
       const agentName = url.searchParams.get('agentName') || 'agent';
-      console.log(`Connection received for website: ${websiteName}, agent: ${agentName}`);
       const websiteLinksParam = url.searchParams.get('websiteLinks');
       let websiteLinks: string[] = [];
       try {
@@ -669,178 +681,116 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
       const userId = url.searchParams.get('userId');
 
       let transcript = '';
-      const startTime = Date.now();
+      let session: any = null;
+      let initialized = false;
 
-      let clientContext = url.searchParams.get('websiteContext') || '';
-      let fetchedContext = '';
-      if (websiteLinks.length > 0) {
-          try {
-              for (const link of websiteLinks) {
-                  try {
-                      // Try r.jina.ai first as it cleanly extracts markdown from any modern URL, SPA, TikTok, Cloudflare protected sites, etc.
-                      const jinaUrl = `https://r.jina.ai/${link}`;
-                      const jinaRes = await axios.get(jinaUrl, { timeout: 6000 });
-                      if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
-                          fetchedContext += `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
-                          continue;
-                      }
-                  } catch (e) {}
+      const initSession = async (providedContext: string = '') => {
+        if (initialized) return;
+        initialized = true;
+        
+        let fetchedContext = '';
+        if (websiteLinks.length > 0) {
+            try {
+                for (const link of websiteLinks) {
+                    try {
+                        const jinaUrl = `https://r.jina.ai/${link}`;
+                        const jinaRes = await axios.get(jinaUrl, { timeout: 6000 });
+                        if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
+                            fetchedContext += `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
+                            continue;
+                        }
+                    } catch (e) {}
+                }
+            } catch (e) { console.error("Failed to fetch context", e); }
+        }
 
-                  try {
-                      const response = await axios.get(link, { 
-                          timeout: 5000,
-                          headers: {
-                              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-                          }
-                      });
-                      const $ = cheerio.load(response.data);
-                      $('script, style, nav, footer, noscript, iframe').remove();
-                      fetchedContext += `\n--- CONTENT FROM ${link} ---\n` + $('body').text().replace(/\s+/g, ' ').trim() + '\n';
-                  } catch (e) {
-                      console.error(`Failed to fetch ${link}`, e);
-                  }
-              }
-          } catch (e) {
-              console.error("Failed to fetch website context", e);
-          }
-      }
+        let websiteContext = fetchedContext.trim() || providedContext.trim();
+        if (!websiteContext) {
+            websiteContext = `General FAQ for ${websiteName}.`;
+        }
 
-      let websiteContext = fetchedContext.trim();
-      if (!websiteContext && websiteLinks.length === 0 && clientContext.trim()) {
-          websiteContext = clientContext.substring(0, 8000);
-      }
-      if (!websiteContext) {
-          websiteContext = `General FAQ and business details for ${websiteName}.${websiteLinks.length > 0 ? ` Official website URLs: ${websiteLinks.join(', ')}.` : ''}`;
-      }
-
-      const systemPrompt = `You are an incredibly ${personality.toLowerCase()} ${voiceGender} receptionist representing ${websiteName}. Your name is ${agentName}.
+        const systemPrompt = `You are an incredibly ${personality.toLowerCase()} ${voiceGender} receptionist representing ${websiteName}. Your name is ${agentName}.
 Your primary goal is to answer user queries accurately based ONLY on the provided Website Data for ${websiteName} below.
-CRITICAL MANDATE: You represent ${websiteName}. Do NOT discuss unrelated websites or products even if stray text appears in your context.
-If the user asks something outside the scope of ${websiteName}, politely inform them that you do not have that information.
-NEVER MENTION that you are an AI, a virtual assistant, a bot, or a superhuman. You are a real human receptionist for ${websiteName}.
-CRITICAL MANDATE: You MUST ONLY speak in ${language}.
-Your tone should be consistently ${personality.toLowerCase()}. Be conversational and natural. Use natural human conversational fillers like 'ummm', 'hmmm', 'let me see', and slight pauses to sound like a real person thinking. Keep your statements brief and to the point since it is a voice conversation.
+NEVER MENTION that you are an AI. You are a real human receptionist for ${websiteName}.
+CRITICAL: You MUST ONLY speak in ${language}.
+Your tone should be consistently ${personality.toLowerCase()}. Use natural fillers like 'ummm', 'hmmm' to sound real.
 
-If the user asks about a specific feature, offering, paid plan, pricing, or contact details, you MUST use the \`display_link\` tool to show them the relevant URL. Deduce the URL from the known pages (${websiteLinks.join(', ')}) if necessary.
-Once you call the tool, naturally tell the user that you've just put the link on their screen.
+${bookingEnabled && bookingUrl ? `CRITICAL: If the user wants to book, collect name/email and call display_booking. URL: ${bookingUrl}` : ''}
 
-${bookingEnabled && bookingUrl ? `CRITICAL: Booking is ENABLED for this website. If the user expresses interest in booking an appointment, scheduling a call, or meeting with a representative, you MUST first collect their name and email (if not already known), and then call the \`display_booking\` tool to show the booking widget.
-Booking System URL: ${bookingUrl}` : 'Booking is currently disabled.'}
-
-Website Data for Context (${websiteName}):
+Website Data (${websiteName}):
 ${websiteContext}
 
-${customInstructions ? `Additional instructions from ${websiteName}: ${customInstructions}` : ''}`;
+${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
-      const session = await ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Aoede' } },
-          },
-          systemInstruction: {
-             parts: [{ text: systemPrompt }]
-          },
-          tools: [{
-            functionDeclarations: [{
-              name: "display_link",
-              description: "Displays a relevant URL/link on the user's screen when they ask for a specific page (e.g. pricing, contact).",
-              parameters: {
-                type: Type.OBJECT,
-                properties: {
-                  url: { type: Type.STRING, description: "The URL to display to the user" },
-                  description: { type: Type.STRING, description: "A brief description of what the link is for" }
-                },
-                required: ["url", "description"]
-              }
-            }, {
-              name: "display_booking",
-              description: "Displays the booking/scheduling widget to the user so they can book an appointment directly.",
-              parameters: {
-                type: Type.OBJECT,
-                properties: {},
-                required: []
-              }
+        session = await ai.live.connect({
+          model: "gemini-3.1-flash-live-preview",
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Aoede' } },
+            },
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            tools: [{
+              functionDeclarations: [{
+                name: "display_link",
+                description: "Displays a relevant URL to the user.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    url: { type: Type.STRING },
+                    description: { type: Type.STRING }
+                  },
+                  required: ["url", "description"]
+                }
+              }, {
+                name: "display_booking",
+                description: "Displays the booking widget.",
+                parameters: { type: Type.OBJECT, properties: {}, required: [] }
+              }]
             }]
-          }]
-        },
-        callbacks: {
-          onmessage: (message: LiveServerMessage) => {
-            if (message.toolCall) {
-               const functionCalls = message.toolCall.functionCalls;
-               if (functionCalls && functionCalls.length > 0) {
-                  const call = functionCalls[0];
-                  if (call.name === "display_link") {
-                      clientWs.send(JSON.stringify({
-                         type: "display_link",
-                         payload: call.args
-                      }));
-                      
-                      session.sendToolResponse({
-                          functionResponses: [{
-                              id: call.id,
-                              name: call.name,
-                              response: { result: "Link displayed to user successfully." }
-                          }]
-                      });
-                  } else if (call.name === "display_booking") {
-                      clientWs.send(JSON.stringify({
-                          type: "display_booking"
-                      }));
-                      
-                      session.sendToolResponse({
-                          functionResponses: [{
-                              id: call.id,
-                              name: call.name,
-                              response: { result: "Booking widget displayed to user successfully." }
-                          }]
-                      });
-                  }
-               }
-            }
-            
-            const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (audio) {
-              clientWs.send(JSON.stringify({ audio }));
-            }
-
-            // Capture text transcript from model
-            const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
-            if (text) {
-              transcript += `Agent: ${text}\n`;
-            }
-
-            // Capture user transcript if provided by the API
-            const userText = (message.serverContent as any)?.userContent?.parts?.[0]?.text || (message.serverContent as any)?.transcription?.text;
-            if (userText) {
-              transcript += `User: ${userText}\n`;
-            }
-
-            if (message.serverContent?.interrupted) {
-              clientWs.send(JSON.stringify({ interrupted: true }));
-            }
           },
-        },
-      });
+          callbacks: {
+            onmessage: (message: LiveServerMessage) => {
+              if (message.toolCall) {
+                 const functionCalls = message.toolCall.functionCalls;
+                 if (functionCalls && functionCalls.length > 0) {
+                    const call = functionCalls[0];
+                    if (call.name === "display_link") {
+                        clientWs.send(JSON.stringify({ type: "display_link", payload: call.args }));
+                        session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
+                    } else if (call.name === "display_booking") {
+                        clientWs.send(JSON.stringify({ type: "display_booking" }));
+                        session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
+                    }
+                 }
+              }
+              const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+              if (audio) clientWs.send(JSON.stringify({ audio }));
+              const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
+              if (text) transcript += `Agent: ${text}\n`;
+              if (message.serverContent?.interrupted) clientWs.send(JSON.stringify({ interrupted: true }));
+            },
+          },
+        });
 
-      // Start conversation
-      session.sendRealtimeInput({
-         text: "Hello! I am a user starting a voice conversation. Please greet me briefly and ask how you can help me."
-      });
-      
-      clientWs.on("message", (data) => {
+        session.sendRealtimeInput({ text: "Hello! Please greet me briefly." });
+      };
+
+      // Set a timeout to initialize if no context message arrives
+      const contextTimeout = setTimeout(() => initSession(), 3000);
+
+      clientWs.on("message", async (data: any) => {
         try {
            const parsed = JSON.parse(data.toString());
-           if (parsed.audio) {
+           if (parsed.type === 'context') {
+             clearTimeout(contextTimeout);
+             await initSession(parsed.payload);
+           } else if (parsed.audio && session) {
              session.sendRealtimeInput({
                audio: { data: parsed.audio, mimeType: "audio/pcm;rate=16000" },
              });
            }
-        } catch (e) {
-          console.error("Error parsing message from client", e);
-        }
+        } catch (e) { console.error("WS Message Error:", e); }
       });
 
       clientWs.on("close", async () => {
