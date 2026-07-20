@@ -18,7 +18,7 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
   
-  // Body parsing middleware - MUST be before routes
+  // Body parsing middleware - MUST be before routes and other middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   
@@ -184,11 +184,6 @@ async function startServer() {
       
       if (serverOrigin && !serverOrigin.includes('localhost') && !serverOrigin.includes('127.0.0.1') && serverOrigin.startsWith('http:')) {
         serverOrigin = serverOrigin.replace('http:', 'https:');
-      }
-
-      // Fallback for production if detection fails
-      if (!serverOrigin || serverOrigin.includes('example.com')) {
-          serverOrigin = 'https://bot1-yruh.onrender.com';
       }
 
       const js = `
@@ -776,11 +771,12 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
   }, 30000);
 
   wss.on('connection', async (clientWs: any, req) => {
-    console.log(`[SERVER] New WebSocket connection from ${req.socket.remoteAddress}`);
+    console.log(`[SERVER] New WebSocket connection from ${req.socket.remoteAddress}. URL: ${req.url}`);
     clientWs.isAlive = true;
     clientWs.on('pong', () => { clientWs.isAlive = true; });
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+      console.log(`[SERVER] Connection params: ${url.search}`);
       
       // Try to load from Firestore first
       const userId = url.searchParams.get('userId');

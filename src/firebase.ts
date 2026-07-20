@@ -14,5 +14,5 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app); // Use default database
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); // Use correct databaseId
 export const auth = getAuth();
