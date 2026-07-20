@@ -305,14 +305,15 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
       customInstructions: localConfig.customInstructions,
       voiceGender: localConfig.voiceGender,
       language: localConfig.language,
-      personality: localConfig.personality
+      personality: localConfig.personality,
+      userId: userId
     }, null, 2);
 
     return `<!-- VoiceAgent AI Embed Code -->
 <script>
   window.VOICEGPT_CONFIG = ${configJson};
 </script>
-<script src="${window.location.origin}/widget.js" async></script>`;
+<script src="${window.location.origin}/vagent.js" async></script>`;
   };
 
   const copyToClipboard = () => {

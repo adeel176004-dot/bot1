@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   projectId: "gen-lang-client-0676055838",
@@ -14,5 +14,5 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); // Use correct databaseId
+export const db = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth();

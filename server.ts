@@ -16,7 +16,7 @@ import { getAuth } from 'firebase-admin/auth';
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT || 3000);
   
   // Body parsing middleware - MUST be before routes and other middleware
   app.use(express.json());
@@ -784,15 +784,16 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
       let storedKnowledge = '';
 
       if (userId) {
+        console.log(`[SERVER] Fetching config for userId: ${userId}`);
         try {
           const agentDoc = await adminDb.collection('agents').doc(`agent_${userId}`).get();
           if (agentDoc.exists) {
             const agentData = agentDoc.data();
             agentConfig = agentData?.config;
             storedKnowledge = agentData?.knowledge || '';
-            console.log(`[SERVER] Loaded agent config from Firestore for user ${userId}`);
+            console.log(`[SERVER] Loaded agent config from Firestore for user ${userId}. Website: ${agentConfig?.websiteName}`);
           } else {
-            console.log(`[SERVER] No stored agent found for user ${userId} in Firestore.`);
+            console.log(`[SERVER] No stored agent found for user ${userId} in Firestore. agentId: agent_${userId}`);
           }
         } catch (err: any) {
           if (err.code === 5) {
