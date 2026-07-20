@@ -1,6 +1,12 @@
 import express from 'express';
 import cors from 'cors';
-import { WebSocketServer } from 'ws';
+import WebSocket, { WebSocketServer } from 'ws';
+
+// Polyfill globalThis.WebSocket for @google/genai Live API on Node.js
+if (!globalThis.WebSocket) {
+  // @ts-ignore
+  globalThis.WebSocket = WebSocket;
+}
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
@@ -925,6 +931,9 @@ ${websiteContext}
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
         try {
+          if (!process.env.GEMINI_API_KEY) {
+            throw new Error("GEMINI_API_KEY is not configured in your Render environment variables. Please add GEMINI_API_KEY in your Render dashboard settings under Environment.");
+          }
           session = await ai.live.connect({
             model: "gemini-3.1-flash-live-preview",
             config: {
@@ -957,10 +966,17 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
                 console.log("\nLive API OPENED");
               },
               onerror: (err: any) => {
-                console.log("\nLive API ERROR: " + (err?.message || err));
+                const errMsg = err?.message || String(err);
+                console.log("\nLive API ERROR: " + errMsg);
+                try {
+                  clientWs.send(JSON.stringify({ error: `Live API Error: ${errMsg}` }));
+                } catch (e) {}
               },
               onclose: (err: any) => {
                 console.log("\nLive API CLOSED: " + JSON.stringify(err));
+                try {
+                  clientWs.send(JSON.stringify({ error: "Live API session closed by Google servers." }));
+                } catch (e) {}
               },
               onmessage: (message: LiveServerMessage) => {
                 console.log("\nRECEIVED MSG: " + JSON.stringify(Object.keys(message || {})));
@@ -996,9 +1012,17 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
           audioBuffer = [];
           
           session.sendClientContent({ turns: [{ role: "user", parts: [{ text: "Hello! Please greet me briefly." }] }], turnComplete: true });
-        } catch (err) {
+        } catch (err: any) {
           console.error("Failed to connect to Live API:", err);
-          clientWs.close();
+          const errorMsg = err?.message || String(err);
+          try {
+            clientWs.send(JSON.stringify({ 
+              error: `Live API Connection Failed: ${errorMsg}` 
+            }));
+          } catch (wsErr) {}
+          setTimeout(() => {
+            try { clientWs.close(); } catch (e) {}
+          }, 1500);
         }
       };
 

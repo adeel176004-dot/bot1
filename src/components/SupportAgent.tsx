@@ -79,6 +79,7 @@ export function SupportAgent({
   };
 
   const [isRecording, setIsRecording] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [displayLink, setDisplayLink] = useState<{url: string, description: string} | null>(null);
   const [showBooking, setShowBooking] = useState(false);
 
@@ -103,6 +104,7 @@ export function SupportAgent({
   const currentBotIcon = config?.botIcon || (mode === 'standalone' ? window.VOICEGPT_CONFIG?.botIcon : null);
 
   const startRecording = async () => {
+    setErrorMsg(null);
     if (isLimitReached) {
       alert("Usage limit reached for this agent. Please contact the administrator.");
       return;
@@ -232,6 +234,11 @@ export function SupportAgent({
       let responseLogged = false;
       ws.onmessage = async (event) => {
         const msg = JSON.parse(event.data);
+        if (msg.error) {
+          setErrorMsg(msg.error);
+          stopRecording();
+          return;
+        }
         if (msg.type === 'display_link') {
            setDisplayLink(msg.payload);
         }
@@ -391,7 +398,12 @@ export function SupportAgent({
             </motion.div>
           ) : null}
 
-          {isLimitReached ? (
+          {errorMsg ? (
+            <div className="flex flex-col items-center text-red-500 gap-2 p-3 max-w-sm mx-auto bg-red-50 rounded-xl border border-red-100">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+              <p className="text-xs font-medium leading-relaxed">{errorMsg}</p>
+            </div>
+          ) : isLimitReached ? (
             <div className="flex flex-col items-center text-red-500 gap-2">
               <AlertCircle className="w-6 h-6" />
               <p className="text-xs font-bold uppercase tracking-tight">Limit Reached</p>
