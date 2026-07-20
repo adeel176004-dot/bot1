@@ -683,6 +683,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
       let transcript = '';
       let session: any = null;
       let initialized = false;
+      let audioBuffer: string[] = [];
 
       const initSession = async (providedContext: string = '') => {
         if (initialized) return;
@@ -691,16 +692,18 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         let fetchedContext = '';
         if (websiteLinks.length > 0) {
             try {
-                for (const link of websiteLinks) {
+                const jinaPromises = websiteLinks.map(async (link) => {
                     try {
                         const jinaUrl = `https://r.jina.ai/${link}`;
-                        const jinaRes = await axios.get(jinaUrl, { timeout: 6000 });
+                        const jinaRes = await axios.get(jinaUrl, { timeout: 3000 });
                         if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
-                            fetchedContext += `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
-                            continue;
+                            return `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
                         }
                     } catch (e) {}
-                }
+                    return '';
+                });
+                const results = await Promise.all(jinaPromises);
+                fetchedContext = results.join('');
             } catch (e) { console.error("Failed to fetch context", e); }
         }
 
@@ -722,58 +725,75 @@ ${websiteContext}
 
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
-        session = await ai.live.connect({
-          model: "gemini-3.1-flash-live-preview",
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Aoede' } },
-            },
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            tools: [{
-              functionDeclarations: [{
-                name: "display_link",
-                description: "Displays a relevant URL to the user.",
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {
-                    url: { type: Type.STRING },
-                    description: { type: Type.STRING }
-                  },
-                  required: ["url", "description"]
-                }
-              }, {
-                name: "display_booking",
-                description: "Displays the booking widget.",
-                parameters: { type: Type.OBJECT, properties: {}, required: [] }
+        try {
+          session = await ai.live.connect({
+            model: "gemini-3.1-flash-live-preview",
+            config: {
+              responseModalities: [Modality.AUDIO],
+              speechConfig: {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Aoede' } },
+              },
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              tools: [{
+                functionDeclarations: [{
+                  name: "display_link",
+                  description: "Displays a relevant URL to the user.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      url: { type: Type.STRING },
+                      description: { type: Type.STRING }
+                    },
+                    required: ["url", "description"]
+                  }
+                }, {
+                  name: "display_booking",
+                  description: "Displays the booking widget.",
+                  parameters: { type: Type.OBJECT, properties: {}, required: [] }
+                }]
               }]
-            }]
-          },
-          callbacks: {
-            onmessage: (message: LiveServerMessage) => {
-              if (message.toolCall) {
-                 const functionCalls = message.toolCall.functionCalls;
-                 if (functionCalls && functionCalls.length > 0) {
-                    const call = functionCalls[0];
-                    if (call.name === "display_link") {
-                        clientWs.send(JSON.stringify({ type: "display_link", payload: call.args }));
-                        session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
-                    } else if (call.name === "display_booking") {
-                        clientWs.send(JSON.stringify({ type: "display_booking" }));
-                        session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
-                    }
-                 }
-              }
-              const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-              if (audio) clientWs.send(JSON.stringify({ audio }));
-              const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
-              if (text) transcript += `Agent: ${text}\n`;
-              if (message.serverContent?.interrupted) clientWs.send(JSON.stringify({ interrupted: true }));
             },
-          },
-        });
-
-        session.sendRealtimeInput({ text: "Hello! Please greet me briefly." });
+            callbacks: {
+              onopen: () => {
+                console.log("\nLive API OPENED");
+              },
+              onerror: (err: any) => {
+                console.log("\nLive API ERROR: " + (err?.message || err));
+              },
+              onclose: (err: any) => {
+                console.log("\nLive API CLOSED: " + JSON.stringify(err));
+              },
+              onmessage: (message: LiveServerMessage) => {
+                console.log("\nRECEIVED MSG: " + JSON.stringify(Object.keys(message || {})));
+                if (message.toolCall) {
+                   const functionCalls = message.toolCall.functionCalls;
+                   if (functionCalls && functionCalls.length > 0) {
+                      const call = functionCalls[0];
+                      if (call.name === "display_link") {
+                          clientWs.send(JSON.stringify({ type: "display_link", payload: call.args }));
+                          session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
+                      } else if (call.name === "display_booking") {
+                          clientWs.send(JSON.stringify({ type: "display_booking" }));
+                          session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
+                      }
+                   }
+                }
+                const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+                if (audio) clientWs.send(JSON.stringify({ audio }));
+                const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
+                if (text) transcript += `Agent: ${text}\n`;
+                if (message.serverContent?.interrupted) clientWs.send(JSON.stringify({ interrupted: true }));
+              },
+            },
+          });
+          
+          // Do not flush buffered audio as sending too many chunks crashes the socket
+          audioBuffer = [];
+          session.sendClientContent({ turns: [{ role: "user", parts: [{ text: "Hello! Please greet me briefly." }] }], turnComplete: true });
+        } catch (err) {
+          console.error("Failed to connect to Live API:", err);
+          clientWs.close();
+        }
       };
 
       // Set a timeout to initialize if no context message arrives
@@ -785,10 +805,12 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
            if (parsed.type === 'context') {
              clearTimeout(contextTimeout);
              await initSession(parsed.payload);
-           } else if (parsed.audio && session) {
-             session.sendRealtimeInput({
-               audio: { data: parsed.audio, mimeType: "audio/pcm;rate=16000" },
-             });
+           } else if (parsed.audio) {
+             if (session) {
+               session.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: parsed.audio } });
+             } else {
+               audioBuffer.push(parsed.audio);
+             }
            }
         } catch (e) { console.error("WS Message Error:", e); }
       });

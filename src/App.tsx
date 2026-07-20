@@ -1923,7 +1923,15 @@ export default function App() {
                   </motion.div>
               )}
           </AnimatePresence>
-          <SupportAgent config={saasConfig} userId={user?.id} />
+          <SupportAgent config={{
+            websiteName: "Voice GPT",
+            agentName: "Support Agent",
+            websiteLinks: [],
+            customInstructions: "You are the support agent for Voice GPT, a SaaS platform where users can create their own AI voice receptionists for their websites. Users can customize the bot's name, gender, personality, language, and provide URLs for the bot to learn from. The bot can also be embedded in their website using a simple script tag. You help users understand how to use Voice GPT.",
+            voiceGender: "female",
+            language: "English",
+            personality: "Helpful"
+          }} userId={user?.id} />
           <AuthModal 
             isOpen={showAuth} 
             onClose={() => setShowAuth(false)} 
