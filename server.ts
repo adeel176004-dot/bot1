@@ -18,6 +18,10 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
   
+  // Body parsing middleware - MUST be before routes
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  
   // Initialize Firebase Admin
   if (getApps().length === 0) {
     console.log('[FIREBASE] Initializing Admin SDK...');
@@ -39,7 +43,18 @@ async function startServer() {
   }
 
   const firebaseApp = getApps()[0];
-  const adminDb = getFirestore(firebaseApp);
+  let firestoreDatabaseId: string | undefined;
+  try {
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      firestoreDatabaseId = firebaseConfig.firestoreDatabaseId;
+    }
+  } catch (err) {
+    console.error('[FIREBASE] Error reading databaseId from config:', err);
+  }
+
+  const adminDb = getFirestore(firebaseApp, firestoreDatabaseId);
   const adminAuth = getAuth();
   
   // Global CORS and security headers
@@ -683,9 +698,15 @@ async function startServer() {
               storedKnowledge = agentData?.knowledge || '';
               if (!finalConfig) finalConfig = agentData?.config;
               console.log(`[CHAT] Loaded stored knowledge for user ${userId} (size: ${storedKnowledge.length})`);
+            } else {
+              console.log(`[CHAT] No stored agent found for user ${userId}, using defaults.`);
             }
-          } catch (err) {
-            console.error('[CHAT] Error loading agent from Firestore:', err);
+          } catch (err: any) {
+            if (err.code === 5) {
+              console.log(`[CHAT] Agent collection/doc not found for user ${userId}, using defaults.`);
+            } else {
+              console.error('[CHAT] Error loading agent from Firestore:', err);
+            }
           }
         }
 
@@ -712,32 +733,8 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
             contents: [{ role: 'user', parts: [{ text: message || "Hello" }] }],
             config: {
                 systemInstruction: systemPrompt,
-                tools: [{
-                    functionDeclarations: [{
-                      name: "display_link",
-                      description: "Provide a relevant URL to the user based on their request.",
-                      parameters: {
-                        type: Type.OBJECT,
-                        properties: {
-                          url: { type: Type.STRING },
-                          description: { type: Type.STRING }
-                        },
-                        required: ["url", "description"]
-                      }
-                    }]
-                }]
             }
         });
-
-        const call = response.functionCalls?.[0];
-        if (call && call.name === "display_link") {
-            const args = call.args;
-            res.json({
-                reply: "I've brought up the link for you.",
-                link: args
-            });
-            return;
-        }
 
         res.json({ reply: response.text || "I'm sorry, I didn't catch that." });
     } catch (e: any) {
@@ -755,7 +752,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         
         const response = await ai.models.generateContent({
             model: "gemini-3.5-flash",
-            contents: prompt || "Write a short blog post about AI.",
+            contents: [{ role: 'user', parts: [{ text: prompt || "Write a short blog post about AI." }] }],
             config: {
                 systemInstruction: systemInstruction || "You are a professional content writer."
             }
@@ -798,9 +795,15 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
             agentConfig = agentData?.config;
             storedKnowledge = agentData?.knowledge || '';
             console.log(`[SERVER] Loaded agent config from Firestore for user ${userId}`);
+          } else {
+            console.log(`[SERVER] No stored agent found for user ${userId} in Firestore.`);
           }
-        } catch (err) {
-          console.error('[SERVER] Error loading agent from Firestore:', err);
+        } catch (err: any) {
+          if (err.code === 5) {
+            console.log(`[SERVER] Agent doc not found for user ${userId} (collection might be empty)`);
+          } else {
+            console.error('[SERVER] Error loading agent from Firestore:', err);
+          }
         }
       }
 
