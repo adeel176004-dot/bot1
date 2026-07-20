@@ -366,13 +366,46 @@ export default function App() {
     }
   }, [user]);
 
-  const handleCreateAgent = () => {
+  const handleCreateAgent = async () => {
     const maxLinks = getMaxLinks(user?.plan);
     const cleanedLinks = saasConfig.websiteLinks.filter(l => l.trim() !== '').slice(0, maxLinks);
-    setSaasConfig({ 
+    const finalConfig = { 
       ...saasConfig, 
       websiteLinks: cleanedLinks.length > 0 ? cleanedLinks : [''] 
-    });
+    };
+    
+    setSaasConfig(finalConfig);
+
+    // If we have user, save to DB
+    if (user) {
+      try {
+        console.log("[BUILDER] Scraping knowledge and saving agent...");
+        let finalKnowledge = '';
+        if (cleanedLinks.length > 0) {
+          const scrapeRes = await fetch('/api/scrape-knowledge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ links: cleanedLinks })
+          });
+          const scrapeData = await scrapeRes.json();
+          finalKnowledge = scrapeData.knowledge || '';
+        }
+
+        await fetch('/api/save-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            name: finalConfig.agentName,
+            config: finalConfig,
+            knowledge: finalKnowledge
+          })
+        });
+      } catch (err) {
+        console.error("[BUILDER] Failed to save agent:", err);
+      }
+    }
+
     setAppMode('agent');
     setIsCreating(false);
   };

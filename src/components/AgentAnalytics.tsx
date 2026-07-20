@@ -91,6 +91,7 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
   const [isServerOnline, setIsServerOnline] = useState<boolean | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [knowledge, setKnowledge] = useState<string>('');
   const [localConfig, setLocalConfig] = useState<VoiceGPTConfig>(config || {
     websiteName: '',
     agentName: '',
@@ -137,7 +138,23 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
           }
         }
       });
-      return () => unsub();
+
+      // Also load agent data
+      const agentUnsub = onSnapshot(doc(db, 'agents', `agent_${userId}`), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.knowledge) setKnowledge(data.knowledge);
+          if (data.config) {
+            setLocalConfig(data.config);
+            onUpdateConfig?.(data.config);
+          }
+        }
+      });
+
+      return () => {
+        unsub();
+        agentUnsub();
+      };
     }
   }, [userId]);
 
@@ -200,21 +217,52 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
     }
   }, [config]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaveStatus('saving');
     
-    // Enforce limits on save
-    const maxLinks = getMaxLinks(plan);
-    const cleanedLinks = localConfig.websiteLinks.filter(l => l.trim() !== '').slice(0, maxLinks);
-    const finalConfig = {
-      ...localConfig,
-      websiteLinks: cleanedLinks.length > 0 ? cleanedLinks : ['']
-    };
-    
-    setLocalConfig(finalConfig);
+    try {
+      // Enforce limits on save
+      const maxLinks = getMaxLinks(plan);
+      const cleanedLinks = localConfig.websiteLinks.filter(l => l.trim() !== '').slice(0, maxLinks);
+      const finalConfig = {
+        ...localConfig,
+        websiteLinks: cleanedLinks.length > 0 ? cleanedLinks : ['']
+      };
+      
+      setLocalConfig(finalConfig);
 
-    // Simulate API delay
-    setTimeout(() => {
+      let finalKnowledge = knowledge;
+      
+      // If links changed or knowledge is empty, re-scrape
+      const linksChanged = JSON.stringify(cleanedLinks) !== JSON.stringify(config?.websiteLinks || []);
+      if ((linksChanged || !knowledge) && cleanedLinks.length > 0) {
+        console.log("[ANALYTICS] Links changed or no knowledge, scraping...");
+        const scrapeRes = await fetch('/api/scrape-knowledge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ links: cleanedLinks })
+        });
+        const scrapeData = await scrapeRes.json();
+        if (scrapeData.knowledge) {
+          finalKnowledge = scrapeData.knowledge;
+          setKnowledge(finalKnowledge);
+        }
+      }
+
+      // Save to Firestore via server API
+      const saveRes = await fetch('/api/save-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          name: finalConfig.agentName,
+          config: finalConfig,
+          knowledge: finalKnowledge
+        })
+      });
+
+      if (!saveRes.ok) throw new Error("Failed to save agent");
+
       onUpdateConfig?.(finalConfig);
       setSaveStatus('saved');
       setTimeout(() => {
@@ -222,7 +270,11 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ stats: propStats
         setIsEditing(false);
         onTest?.();
       }, 1000);
-    }, 800);
+    } catch (err) {
+      console.error("[ANALYTICS] Save error:", err);
+      setSaveStatus('idle');
+      alert("Failed to save agent configuration. Please try again.");
+    }
   };
 
   const getMaxLinks = (currentPlan?: string) => {

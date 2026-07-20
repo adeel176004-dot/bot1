@@ -100,6 +100,60 @@ async function startServer() {
     }
   });
 
+  app.post('/api/scrape-knowledge', async (req, res) => {
+    try {
+      const { links } = req.body;
+      if (!Array.isArray(links)) return res.status(400).json({ error: 'Invalid links' });
+      
+      console.log(`[SCRAPER] Scraping ${links.length} links...`);
+      
+      const jinaPromises = links.map(async (link: string) => {
+        try {
+          const jinaUrl = `https://r.jina.ai/${link}`;
+          const jinaRes = await axios.get(jinaUrl, { timeout: 10000 }); // Longer timeout for bulk
+          if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
+            return `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 10000) + '\n';
+          }
+        } catch (e: any) {
+          console.error(`[SCRAPER] Failed to scrape ${link}:`, e.message);
+        }
+        return '';
+      });
+      
+      const results = await Promise.all(jinaPromises);
+      const combinedKnowledge = results.join('').trim();
+      
+      res.json({ knowledge: combinedKnowledge });
+    } catch (err: any) {
+      console.error('[SERVER] Scrape error:', err);
+      res.status(500).json({ error: 'Failed to scrape website content' });
+    }
+  });
+
+  app.post('/api/save-agent', async (req, res) => {
+    try {
+      const { userId, name, config, knowledge } = req.body;
+      if (!userId || !name || !config) return res.status(400).json({ error: 'Missing required fields' });
+      
+      // We'll use a deterministic ID based on userId and name for now, or just userId if one agent
+      const agentId = `agent_${userId}`; 
+      
+      await adminDb.collection('agents').doc(agentId).set({
+        userId,
+        name,
+        config,
+        knowledge: knowledge || '',
+        updatedAt: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp() // set handles both, but usually we'd check if exists
+      }, { merge: true });
+      
+      res.json({ success: true, agentId });
+    } catch (err) {
+      console.error('[SERVER] Save agent error:', err);
+      res.status(500).json({ error: 'Failed to save agent configuration' });
+    }
+  });
+
   app.get('/vagent.js', (req, res) => {
     console.log('[SERVER] Serving vagent.js');
     try {
@@ -573,23 +627,45 @@ async function startServer() {
              console.error("GEMINI_API_KEY is missing");
              return res.status(500).json({ error: "API key is missing on the server." });
         }
-        const { message, config, context } = req.body;
-        const websiteName = config.websiteName || 'Voice Agent';
-        const agentName = config.agentName || 'Agent';
-        const customInstructions = config.customInstructions || '';
+        const { message, config, context, userId } = req.body;
         
-        let systemPrompt = `You are an incredibly friendly female receptionist for ${websiteName}. Your name is ${agentName}.
-Your primary goal is to answer user queries accurately. You have access to the text content of the webpage the user is currently looking at.
-NEVER MENTION that you are an AI, a virtual assistant, a bot, or a superhuman. You are a real human receptionist.
-Be extremely conversational, warm, and natural. Keep your statements brief and to the point since it is a voice conversation.
+        let storedKnowledge = '';
+        let finalConfig = config;
 
-Webpage Content:
-${context}
+        if (userId) {
+          try {
+            const agentDoc = await adminDb.collection('agents').doc(`agent_${userId}`).get();
+            if (agentDoc.exists) {
+              const agentData = agentDoc.data();
+              storedKnowledge = agentData?.knowledge || '';
+              if (!finalConfig) finalConfig = agentData?.config;
+              console.log(`[CHAT] Loaded stored knowledge for user ${userId} (size: ${storedKnowledge.length})`);
+            }
+          } catch (err) {
+            console.error('[CHAT] Error loading agent from Firestore:', err);
+          }
+        }
+
+        const websiteName = finalConfig?.websiteName || 'Voice Agent';
+        const agentName = finalConfig?.agentName || 'Agent';
+        const customInstructions = finalConfig?.customInstructions || '';
+        const personality = finalConfig?.personality || 'Friendly';
+        
+        let systemPrompt = `You are an incredibly ${personality.toLowerCase()} human receptionist for ${websiteName}. Your name is ${agentName}.
+Your primary goal is to answer user queries accurately using the Stored Knowledge and Current Context provided below.
+NEVER MENTION that you are an AI, a virtual assistant, a bot, or a superhuman. You are a real human receptionist.
+Be extremely conversational, warm, and natural. Keep your statements brief and helpful.
+
+Current Page Context:
+${context || 'No specific page context provided.'}
+
+Stored Knowledge:
+${storedKnowledge || 'No specific stored knowledge available.'}
 
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
         const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: "gemini-1.5-flash",
             contents: [{ role: 'user', parts: [{ text: message || "Hello" }] }],
             config: {
                 systemInstruction: systemPrompt,
@@ -665,20 +741,40 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
     clientWs.on('pong', () => { clientWs.isAlive = true; });
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-      const websiteName = url.searchParams.get('websiteName') || 'Acme Corp';
-      const agentName = url.searchParams.get('agentName') || 'agent';
+      
+      // Try to load from Firestore first
+      const userId = url.searchParams.get('userId');
+      let agentConfig: any = null;
+      let storedKnowledge = '';
+
+      if (userId) {
+        try {
+          const agentDoc = await adminDb.collection('agents').doc(`agent_${userId}`).get();
+          if (agentDoc.exists) {
+            const agentData = agentDoc.data();
+            agentConfig = agentData?.config;
+            storedKnowledge = agentData?.knowledge || '';
+            console.log(`[SERVER] Loaded agent config from Firestore for user ${userId}`);
+          }
+        } catch (err) {
+          console.error('[SERVER] Error loading agent from Firestore:', err);
+        }
+      }
+
+      const websiteName = url.searchParams.get('websiteName') || agentConfig?.websiteName || 'Acme Corp';
+      const agentName = url.searchParams.get('agentName') || agentConfig?.agentName || 'agent';
       const websiteLinksParam = url.searchParams.get('websiteLinks');
-      let websiteLinks: string[] = [];
+      let websiteLinks: string[] = agentConfig?.websiteLinks || [];
       try {
           if (websiteLinksParam) websiteLinks = JSON.parse(websiteLinksParam);
       } catch (e) {}
-      const customInstructions = url.searchParams.get('customInstructions') || '';
-      const voiceGender = url.searchParams.get('voiceGender') || 'female';
-      const language = url.searchParams.get('language') || 'English';
-      const personality = url.searchParams.get('personality') || 'Friendly';
-      const bookingEnabled = url.searchParams.get('bookingEnabled') === 'true';
-      const bookingUrl = url.searchParams.get('bookingUrl') || '';
-      const userId = url.searchParams.get('userId');
+      
+      const customInstructions = url.searchParams.get('customInstructions') || agentConfig?.customInstructions || '';
+      const voiceGender = url.searchParams.get('voiceGender') || agentConfig?.voiceGender || 'female';
+      const language = url.searchParams.get('language') || agentConfig?.language || 'English';
+      const personality = url.searchParams.get('personality') || agentConfig?.personality || 'Friendly';
+      const bookingEnabled = (url.searchParams.get('bookingEnabled') === 'true') || !!agentConfig?.bookingEnabled;
+      const bookingUrl = url.searchParams.get('bookingUrl') || agentConfig?.bookingUrl || '';
 
       let transcript = '';
       let session: any = null;
@@ -689,27 +785,35 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         if (initialized) return;
         initialized = true;
         
-        let fetchedContext = '';
-        if (websiteLinks.length > 0) {
-            try {
-                const jinaPromises = websiteLinks.map(async (link) => {
-                    try {
-                        const jinaUrl = `https://r.jina.ai/${link}`;
-                        const jinaRes = await axios.get(jinaUrl, { timeout: 3000 });
-                        if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
-                            return `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
-                        }
-                    } catch (e) {}
-                    return '';
-                });
-                const results = await Promise.all(jinaPromises);
-                fetchedContext = results.join('');
-            } catch (e) { console.error("Failed to fetch context", e); }
+        let websiteContext = '';
+
+        // If we have stored knowledge, use it. Otherwise, fallback to real-time (but this is what we want to avoid)
+        if (storedKnowledge) {
+          console.log(`[SERVER] Using stored knowledge for ${agentName} (size: ${storedKnowledge.length})`);
+          websiteContext = storedKnowledge;
+        } else if (websiteLinks.length > 0) {
+          console.log(`[SERVER] No stored knowledge, falling back to real-time fetch for ${agentName}`);
+          try {
+              const jinaPromises = websiteLinks.map(async (link) => {
+                  try {
+                      const jinaUrl = `https://r.jina.ai/${link}`;
+                      const jinaRes = await axios.get(jinaUrl, { timeout: 3000 });
+                      if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
+                          return `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
+                      }
+                  } catch (e) {}
+                  return '';
+              });
+              const results = await Promise.all(jinaPromises);
+              websiteContext = results.join('').trim();
+          } catch (e) { console.error("Failed to fetch context", e); }
         }
 
-        let websiteContext = fetchedContext.trim() || providedContext.trim();
         if (!websiteContext) {
-            websiteContext = `General FAQ for ${websiteName}.`;
+            websiteContext = providedContext.trim() || `General FAQ for ${websiteName}.`;
+        } else if (providedContext.trim()) {
+            // Append provided context (e.g. current page text) to stored knowledge
+            websiteContext = `Current Page Context:\n${providedContext.trim()}\n\nStored Knowledge:\n${websiteContext}`;
         }
 
         const systemPrompt = `You are an incredibly ${personality.toLowerCase()} ${voiceGender} receptionist representing ${websiteName}. Your name is ${agentName}.

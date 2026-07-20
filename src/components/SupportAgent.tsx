@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { pcmToBase64, base64ToPcm } from '../lib/audioUtils';
-import { Bot, Mic, MicOff, X, Sparkles, AlertCircle } from 'lucide-react';
+import { Bot, Mic, MicOff, X, Sparkles, AlertCircle, Send, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
