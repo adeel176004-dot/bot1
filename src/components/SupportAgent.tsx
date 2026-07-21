@@ -100,27 +100,28 @@ export function SupportAgent({
       const hostUrl = (window as any).VOICEGPT_ORIGIN ? new URL((window as any).VOICEGPT_ORIGIN) : window.location;
       const protocol = hostUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       
-      let queryParams: string;
+      let paramsObj: any = {};
       if (config) {
         const userId = propUserId || (mode === 'standalone' && window.VOICEGPT_CONFIG?.userId);
-        queryParams = new URLSearchParams({
+        paramsObj = {
           ...config,
           websiteLinks: JSON.stringify(config.websiteLinks),
           userId: userId || ''
-        }).toString();
+        };
       } else if (mode === "standalone") {
         if (window.VOICEGPT_CONFIG) {
-           const safeConfig: any = {};
            for (const key in window.VOICEGPT_CONFIG) {
               if (typeof window.VOICEGPT_CONFIG[key] === 'object') {
-                  safeConfig[key] = JSON.stringify(window.VOICEGPT_CONFIG[key]);
+                  paramsObj[key] = JSON.stringify(window.VOICEGPT_CONFIG[key]);
               } else {
-                  safeConfig[key] = window.VOICEGPT_CONFIG[key];
+                  paramsObj[key] = window.VOICEGPT_CONFIG[key];
               }
            }
-           queryParams = new URLSearchParams(safeConfig).toString();
         } else {
-           queryParams = window.location.search.replace('?', '');
+           const searchParams = new URLSearchParams(window.location.search);
+           searchParams.forEach((value, key) => {
+               paramsObj[key] = value;
+           });
         }
       } else {
         const customInstructions = propCustomInstructions || `
@@ -144,16 +145,33 @@ export function SupportAgent({
         `.trim();
 
         const userId = propUserId;
-        queryParams = new URLSearchParams({
+        paramsObj = {
           websiteName: 'VoiceAgent Builder',
           agentName: propAgentName || 'Support Bot',
           websiteLinks: '[]',
           customInstructions: customInstructions,
           userId: userId || ''
-        }).toString();
+        };
       }
 
-      const ws = new WebSocket(`${protocol}//${hostUrl.host}/live?${queryParams}`);
+      let ws: WebSocket;
+      try {
+          const initRes = await fetch(`${hostUrl.protocol}//${hostUrl.host}/api/init-live-session`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(paramsObj)
+          });
+          const initData = await initRes.json();
+          if (initData.sessionId) {
+              ws = new WebSocket(`${protocol}//${hostUrl.host}/live?sessionId=${initData.sessionId}`);
+          } else {
+              throw new Error("No session ID returned");
+          }
+      } catch (err) {
+          console.error("Falling back to query parameters due to init error:", err);
+          const queryParams = new URLSearchParams(paramsObj).toString();
+          ws = new WebSocket(`${protocol}//${hostUrl.host}/live?${queryParams}`);
+      }
       wsRef.current = ws;
 
       const inputAudioCtx = new AudioContext({ sampleRate: 16000 });
