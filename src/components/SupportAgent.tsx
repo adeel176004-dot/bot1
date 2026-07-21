@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { pcmToBase64, base64ToPcm } from '../lib/audioUtils';
-import { Bot, Mic, MicOff, X, Sparkles, AlertCircle, Send, Loader2 } from 'lucide-react';
+import { Bot, Mic, MicOff, X, Sparkles, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -21,10 +21,6 @@ interface SupportAgentProps {
     voiceGender: string;
     language: string;
     personality: string;
-    bookingEnabled?: boolean;
-    bookingUrl?: string;
-    themeColor?: string;
-    botIcon?: string;
   };
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -79,18 +75,13 @@ export function SupportAgent({
   };
 
   const [isRecording, setIsRecording] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [displayLink, setDisplayLink] = useState<{url: string, description: string} | null>(null);
-  const [showBooking, setShowBooking] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const inputAudioCtxRef = useRef<AudioContext | null>(null);
   const outputAudioCtxRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const nextStartTimeRef = useRef<number>(0);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const slowConnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isSlowConnection, setIsSlowConnection] = useState(false);
 
   const toggleRecording = async () => {
     if (isRecording) {
@@ -100,11 +91,7 @@ export function SupportAgent({
     }
   };
 
-  const currentThemeColor = config?.themeColor || (mode === 'standalone' ? window.VOICEGPT_CONFIG?.themeColor : null) || '#2563eb';
-  const currentBotIcon = config?.botIcon || (mode === 'standalone' ? window.VOICEGPT_CONFIG?.botIcon : null);
-
   const startRecording = async () => {
-    setErrorMsg(null);
     if (isLimitReached) {
       alert("Usage limit reached for this agent. Please contact the administrator.");
       return;
@@ -117,17 +104,8 @@ export function SupportAgent({
       if (config) {
         const userId = propUserId || (mode === 'standalone' && window.VOICEGPT_CONFIG?.userId);
         queryParams = new URLSearchParams({
-          websiteName: config.websiteName || '',
-          agentName: config.agentName || '',
-          websiteLinks: JSON.stringify(config.websiteLinks || []),
-          customInstructions: config.customInstructions || '',
-          voiceGender: config.voiceGender || '',
-          language: config.language || '',
-          personality: config.personality || '',
-          bookingEnabled: String(config.bookingEnabled || false),
-          bookingUrl: config.bookingUrl || '',
-          themeColor: config.themeColor || '',
-          botIcon: config.botIcon || '',
+          ...config,
+          websiteLinks: JSON.stringify(config.websiteLinks),
           userId: userId || ''
         }).toString();
       } else if (mode === "standalone") {
@@ -179,17 +157,11 @@ export function SupportAgent({
       wsRef.current = ws;
 
       const inputAudioCtx = new AudioContext({ sampleRate: 16000 });
-      await inputAudioCtx.resume();
       inputAudioCtxRef.current = inputAudioCtx;
       
       const outputAudioCtx = new AudioContext({ sampleRate: 24000 });
-      await outputAudioCtx.resume();
       outputAudioCtxRef.current = outputAudioCtx;
       nextStartTimeRef.current = 0;
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Your browser does not support microphone access.");
-      }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -203,58 +175,16 @@ export function SupportAgent({
         if (ws.readyState === WebSocket.OPEN) {
           const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
           ws.send(JSON.stringify({ audio: base64 }));
-          
-          if (!slowConnTimeoutRef.current) {
-            slowConnTimeoutRef.current = setTimeout(() => {
-              if (ws.readyState === WebSocket.OPEN) {
-                setIsSlowConnection(true);
-              }
-            }, 5000);
-          }
         }
-      };
-
-      // Heartbeat to keep connection alive
-      heartbeatIntervalRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping' }));
-        }
-      }, 10000);
-
-      ws.onclose = (event: CloseEvent) => {
-        console.log("WebSocket closed", event);
-        if (event.code !== 1000 && event.code !== 1001) {
-          setErrorMsg(`Connection closed (Code: ${event.code}${event.reason ? `, Reason: ${event.reason}` : ''}). If your server is hosted in Europe/UK, please ensure your Render backend is hosted in a US region (such as Oregon) to bypass Gemini Live API geographic restrictions.`);
-        }
-        stopRecording();
-      };
-
-      ws.onerror = (err) => {
-        console.error("WebSocket error:", err);
-        setErrorMsg("WebSocket connection error. Make sure your server is running and supports WebSockets.");
-        stopRecording();
       };
 
       let responseLogged = false;
       ws.onmessage = async (event) => {
         const msg = JSON.parse(event.data);
-        if (msg.error) {
-          setErrorMsg(msg.error);
-          stopRecording();
-          return;
-        }
         if (msg.type === 'display_link') {
            setDisplayLink(msg.payload);
         }
-        if (msg.type === 'display_booking') {
-           setShowBooking(true);
-        }
         if (msg.audio) {
-          if (slowConnTimeoutRef.current) {
-            clearTimeout(slowConnTimeoutRef.current);
-            slowConnTimeoutRef.current = null;
-          }
-          setIsSlowConnection(false);
           playAudioChunk(outputAudioCtx, msg.audio);
           
           // Log message to Firestore (only once per agent response)
@@ -278,17 +208,9 @@ export function SupportAgent({
       };
       
       setIsRecording(true);
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to start recording:", e);
-      let msg = "Failed to access microphone. ";
-      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-        msg += "Permission was denied. Please allow microphone access in your browser settings.";
-      } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
-        msg += "No microphone found on your device.";
-      } else {
-        msg += e.message || "Please check your browser permissions.";
-      }
-      alert(msg);
+      alert("Failed to access microphone. Please check permissions.");
     }
   };
 
@@ -307,15 +229,6 @@ export function SupportAgent({
   };
 
   const stopRecording = () => {
-    if (slowConnTimeoutRef.current) {
-      clearTimeout(slowConnTimeoutRef.current);
-      slowConnTimeoutRef.current = null;
-    }
-    setIsSlowConnection(false);
-    if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
-      heartbeatIntervalRef.current = null;
-    }
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -377,45 +290,13 @@ export function SupportAgent({
         </button>
       </div>
       <div className="text-center">
-          {showBooking && config?.bookingUrl ? (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
-            >
-              <div className="bg-white w-full max-w-2xl h-[80vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                  <h3 className="font-bold text-slate-900">Book an Appointment</h3>
-                  <button 
-                    onClick={() => setShowBooking(false)}
-                    className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <iframe 
-                  src={config.bookingUrl}
-                  className="w-full flex-1"
-                  frameBorder="0"
-                />
-              </div>
-            </motion.div>
-          ) : null}
-
-          {errorMsg ? (
-            <div className="flex flex-col items-center text-red-500 gap-2 p-3 max-w-sm mx-auto bg-red-50 rounded-xl border border-red-100">
-              <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-              <p className="text-xs font-medium leading-relaxed">{errorMsg}</p>
-            </div>
-          ) : isLimitReached ? (
+          {isLimitReached ? (
             <div className="flex flex-col items-center text-red-500 gap-2">
               <AlertCircle className="w-6 h-6" />
               <p className="text-xs font-bold uppercase tracking-tight">Limit Reached</p>
             </div>
           ) : (
-            <p className={`font-medium ${isSlowConnection ? 'text-amber-500 animate-pulse' : 'text-slate-600'}`}>
-              {isSlowConnection ? "Slow Connection..." : (isRecording ? "Listening..." : "Tap to start speaking")}
-            </p>
+            <p className="text-slate-600 font-medium">{isRecording ? "Listening..." : "Tap to start speaking"}</p>
           )}
       </div>
 
@@ -473,12 +354,8 @@ export function SupportAgent({
             <div className="bg-white px-4 py-2 rounded-full shadow-lg ring-1 ring-slate-900/5 font-medium text-slate-700 whitespace-nowrap">
               Ask me!
             </div>
-            <div style={{ backgroundColor: currentThemeColor }} className="shadow-xl text-white w-14 h-14 rounded-full flex items-center justify-center transition-colors">
-              {currentBotIcon ? (
-                <img src={currentBotIcon} alt="Agent" className="w-8 h-8 rounded-full" />
-              ) : (
-                <Bot className="w-7 h-7" />
-              )}
+            <div className="bg-blue-600 shadow-xl shadow-blue-500/20 text-white w-14 h-14 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
+              <Bot className="w-7 h-7" />
             </div>
           </motion.div>
         )}
@@ -492,13 +369,9 @@ export function SupportAgent({
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="fixed bottom-6 right-6 z-50 w-[340px] bg-white rounded-3xl shadow-2xl ring-1 ring-slate-900/5 overflow-hidden flex flex-col"
           >
-            <div style={{ backgroundColor: currentThemeColor }} className="p-4 flex items-center justify-between">
+            <div className="bg-blue-600 p-4 flex items-center justify-between">
               <div className="flex items-center gap-2 text-white">
-                {currentBotIcon ? (
-                  <img src={currentBotIcon} alt="Agent" className="w-6 h-6 rounded-full border border-white/20" />
-                ) : (
-                  <Bot className="w-6 h-6" />
-                )}
+                <Bot className="w-6 h-6" />
                 <span className="font-medium text-lg">Support Agent</span>
               </div>
               <button 

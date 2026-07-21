@@ -34,7 +34,6 @@
         "userId": { "type": "string" },
         "name": { "type": "string" },
         "config": { "type": "object" },
-        "knowledge": { "type": "string" },
         "stats": {
           "type": "object",
           "properties": {

@@ -43,7 +43,7 @@ service cloud.firestore {
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidAgent(incoming());
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidAgent(incoming()) && (
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'config', 'stats', 'knowledge', 'updatedAt'])
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'config', 'stats', 'updatedAt'])
       );
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }

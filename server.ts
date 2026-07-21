@@ -1,12 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import WebSocket, { WebSocketServer } from 'ws';
-
-// Polyfill globalThis.WebSocket for @google/genai Live API on Node.js
-if (!globalThis.WebSocket) {
-  // @ts-ignore
-  globalThis.WebSocket = WebSocket;
-}
+import { WebSocketServer } from 'ws';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
@@ -14,7 +8,7 @@ import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
 import * as http from 'http';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
@@ -22,114 +16,51 @@ import { getAuth } from 'firebase-admin/auth';
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT || 3000);
-  
-  // Body parsing middleware - MUST be before routes and other middleware
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  const PORT = 3000;
   
   // Initialize Firebase Admin
-  let firebaseApp: any = null;
   if (getApps().length === 0) {
-    console.log('[FIREBASE] Initializing Admin SDK...');
+    console.log('[FIREBASE] Initializing Admin SDK with explicit project ID...');
     try {
-      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        console.log('[FIREBASE] Using service account from FIREBASE_SERVICE_ACCOUNT env var');
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        firebaseApp = initializeApp({
-          credential: cert(serviceAccount),
-          projectId: serviceAccount.project_id
-        });
-      } else {
-        const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-        if (fs.existsSync(configPath)) {
-          const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          console.log('[FIREBASE] Using config from firebase-applet-config.json', { projectId: firebaseConfig.projectId });
-          firebaseApp = initializeApp({
-            projectId: firebaseConfig.projectId
-          });
-        } else {
-          console.log('[FIREBASE] Config file not found, using default initialization');
-          firebaseApp = initializeApp();
-        }
-      }
+      initializeApp({
+        projectId: 'gen-lang-client-0676055838'
+      });
     } catch (err) {
       console.error('[FIREBASE] Error initializing Firebase app:', err);
     }
-  } else {
-    firebaseApp = getApps()[0];
   }
 
-  let firestoreDatabaseId: string | undefined;
-  try {
-    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(configPath)) {
-      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      firestoreDatabaseId = firebaseConfig.firestoreDatabaseId;
-    }
-  } catch (err) {
-    console.error('[FIREBASE] Error reading databaseId from config:', err);
-  }
-
-  let adminDb: any;
-  if (firebaseApp) {
-    try {
-      adminDb = getFirestore(firebaseApp, firestoreDatabaseId);
-    } catch (err) {
-      console.error('[FIREBASE] Error creating Firestore instance from active app:', err);
-    }
-  }
-
-  if (!adminDb) {
-    console.warn('[FIREBASE] Firestore Admin is not fully initialized. Creating a non-crashing safe proxy fallback.');
-    
-    // Create a recursive proxy that throws/rejects only when queries are triggered
-    const createErrorProxy = (path: string[] = []): any => {
-      const targetFn = () => {};
-      return new Proxy(targetFn, {
-        get(target, prop) {
-          if (typeof prop === 'string') {
-            if (prop === 'then') {
-              return (resolve: any, reject: any) => reject(new Error('Firestore Admin is not initialized. Please set the FIREBASE_SERVICE_ACCOUNT environment variable on Render.'));
-            }
-            return createErrorProxy([...path, prop]);
-          }
-          return undefined;
-        },
-        apply(target, thisArg, argumentsList) {
-          const lastProp = path[path.length - 1];
-          if (['get', 'set', 'update', 'add', 'delete'].includes(lastProp)) {
-            return Promise.reject(new Error('Firestore Admin is not initialized. Please set the FIREBASE_SERVICE_ACCOUNT environment variable on Render.'));
-          }
-          return createErrorProxy(path);
-        }
-      });
-    };
-    adminDb = createErrorProxy();
-  }
-
-  let adminAuth: any;
-  try {
-    adminAuth = firebaseApp ? getAuth(firebaseApp) : null;
-  } catch (err) {
-    console.error('[FIREBASE] Error initializing Auth Admin:', err);
-  }
+  const DB_ID = 'ai-studio-voiceagentbuilde-49d60089-d04c-4ee8-a68c-15f8844a9979';
+  let adminDb: FirebaseFirestore.Firestore;
   
-  // Global CORS and security headers
+  // Try initializing with the named database first
+  const firebaseApp = getApps()[0];
+  const namedDb = getFirestore(firebaseApp, DB_ID);
+  
+  // Test named database connection/permissions with a small operation if possible
+  // Since we can't easily "test" without a call, we'll use a safer approach:
+  // We'll wrap the OTP operations in a try-catch that can fallback to default DB if it hits PERMISSION_DENIED
+  adminDb = namedDb;
+  console.log(`[FIREBASE] Defaulting to named database: ${DB_ID}`);
+
+  const adminAuth = getAuth();
+
+  app.use(cors({ origin: '*' }));
+  app.options('*', cors({ origin: '*' }));
+  
+  // Logging middleware for troubleshooting
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.removeHeader('X-Frame-Options');
-    res.setHeader('Content-Security-Policy', "frame-ancestors *");
-    
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
+    console.log(`[SERVER] ${req.method} ${req.url}`);
     next();
   });
-  
-  app.use(cors({ origin: '*' }));
+
+  app.get('/health', (req, res) => res.status(200).send('OK'));
+
+  app.use((req, res, next) => {
+    res.removeHeader('X-Frame-Options'); // Allow iframe embedding
+    res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    next();
+  });
 
   app.get('/api/usage-status/:userId', async (req, res) => {
     try {
@@ -167,60 +98,6 @@ async function startServer() {
     } catch (err) {
       console.error('[SERVER] Log message error:', err);
       res.status(500).json({ error: 'Failed to log message' });
-    }
-  });
-
-  app.post('/api/scrape-knowledge', async (req, res) => {
-    try {
-      const { links } = req.body;
-      if (!Array.isArray(links)) return res.status(400).json({ error: 'Invalid links' });
-      
-      console.log(`[SCRAPER] Scraping ${links.length} links...`);
-      
-      const jinaPromises = links.map(async (link: string) => {
-        try {
-          const jinaUrl = `https://r.jina.ai/${link}`;
-          const jinaRes = await axios.get(jinaUrl, { timeout: 10000 }); // Longer timeout for bulk
-          if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
-            return `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 10000) + '\n';
-          }
-        } catch (e: any) {
-          console.error(`[SCRAPER] Failed to scrape ${link}:`, e.message);
-        }
-        return '';
-      });
-      
-      const results = await Promise.all(jinaPromises);
-      const combinedKnowledge = results.join('').trim();
-      
-      res.json({ knowledge: combinedKnowledge });
-    } catch (err: any) {
-      console.error('[SERVER] Scrape error:', err);
-      res.status(500).json({ error: 'Failed to scrape website content' });
-    }
-  });
-
-  app.post('/api/save-agent', async (req, res) => {
-    try {
-      const { userId, name, config, knowledge } = req.body;
-      if (!userId || !name || !config) return res.status(400).json({ error: 'Missing required fields' });
-      
-      // We'll use a deterministic ID based on userId and name for now, or just userId if one agent
-      const agentId = `agent_${userId}`; 
-      
-      await adminDb.collection('agents').doc(agentId).set({
-        userId,
-        name,
-        config,
-        knowledge: knowledge || '',
-        updatedAt: FieldValue.serverTimestamp(),
-        createdAt: FieldValue.serverTimestamp() // set handles both, but usually we'd check if exists
-      }, { merge: true });
-      
-      res.json({ success: true, agentId });
-    } catch (err) {
-      console.error('[SERVER] Save agent error:', err);
-      res.status(500).json({ error: 'Failed to save agent configuration' });
     }
   });
 
@@ -274,20 +151,17 @@ async function startServer() {
     var config = window.VOICEGPT_CONFIG || {};
     var websiteName = config.websiteName || 'Voice Agent';
     var agentName = config.agentName || 'Agent';
-    var themeColor = config.themeColor || "#2563eb";
-    var botIcon = config.botIcon || "";
-    var origin = "${serverOrigin}";
+    var serverOrigin = "${serverOrigin}";
+    var origin = serverOrigin;
     
-    // Try to detect origin from the current script tag if possible
     try {
         var scripts = document.getElementsByTagName('script');
         for (var i = 0; i < scripts.length; i++) {
             var s = scripts[i];
-            if (s.src && (s.src.indexOf('/vagent.js') !== -1)) {
+            if (s.src && (s.src.indexOf('/vagent.js') !== -1 || s.src.indexOf('ais-') !== -1)) {
                 var scriptUrl = new URL(s.src);
-                var scriptOrigin = scriptUrl.origin;
-                if (scriptOrigin && scriptOrigin.indexOf('localhost') === -1 && scriptOrigin.indexOf('example.com') === -1) {
-                    origin = scriptOrigin;
+                if (!origin || origin.indexOf('localhost') !== -1 || origin.indexOf('127.0.0.1') !== -1 || origin === "" || origin.indexOf('example.com') !== -1) {
+                    origin = scriptUrl.origin;
                     log("Detected origin from script tag:", origin);
                 }
                 break;
@@ -295,16 +169,7 @@ async function startServer() {
         }
     } catch(e) { log("Error detecting origin:", e); }
 
-    log("Using origin:", origin);
-    
-    // Final fallback
-    if (!origin || origin === "null" || origin.indexOf('example.com') !== -1) {
-        origin = window.location.origin;
-        log("Falling back to window.location.origin:", origin);
-    }
-    // Strip trailing slash
-    if (origin.endsWith('/')) origin = origin.slice(0, -1);
-    
+    if (!origin || origin === "null") origin = window.location.origin;
     window.VOICEGPT_ORIGIN = origin;
     log("Final origin being used:", origin);
     
@@ -330,34 +195,29 @@ async function startServer() {
     var style = document.createElement('style');
     style.innerHTML = \`
         #voicegpt-vanilla-widget * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .av-fab { width: 60px; height: 60px; border-radius: 50%; background: \` + themeColor + \`; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: none; transition: transform 0.2s; z-index: 2147483647; position: absolute; bottom: 0; right: 0; pointer-events: auto; }
+        .av-fab { width: 60px; height: 60px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4); border: none; transition: transform 0.2s; z-index: 2147483647; position: absolute; bottom: 0; right: 0; pointer-events: auto; }
         .av-fab:hover { transform: scale(1.05); }
-        .av-fab img { width: 32px; height: 32px; border-radius: 50%; }
         .av-window { position: absolute; bottom: 80px; right: 0; width: 340px; height: 480px; background: white; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); display: none; flex-direction: column; overflow: hidden; border: 1px solid #e5e7eb; transition: opacity 0.3s; opacity: 0; transform: translateY(10px); z-index: 2147483647; pointer-events: auto; }
         .av-window.av-open { display: flex; opacity: 1; transform: translateY(0); }
-        .av-header { background: \` + themeColor + \`; color: white; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
+        .av-header { background: #1e40af; color: white; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
         .av-header-title { font-weight: 600; font-size: 16px; margin: 0; }
         .av-header-subtitle { font-size: 12px; opacity: 0.8; margin: 0; }
         .av-close { background: none; border: none; color: white; cursor: pointer; font-size: 20px; opacity: 0.8; padding: 0; margin: 0; }
         .av-close:hover { opacity: 1; }
         .av-body { flex: 1; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #f8fafc; overflow-y: auto; }
-        .av-avatar { width: 80px; height: 80px; border-radius: 50%; background: #e0e7ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
-        .av-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .av-avatar { width: 80px; height: 80px; border-radius: 50%; background: #e0e7ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(79,70,229,0.2); }
         .av-status { font-size: 16px; font-weight: 500; color: #334155; margin-bottom: 8px; }
         .av-desc { font-size: 14px; color: #64748b; margin-bottom: 32px; }
-        .av-btn { background: \` + themeColor + \`; color: white; border: none; padding: 12px 24px; border-radius: 9999px; font-weight: 600; font-size: 15px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
-        .av-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        .av-btn { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 9999px; font-weight: 600; font-size: 15px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.3); transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .av-btn:hover { background: #1d4ed8; transform: translateY(-2px); }
         .av-btn.av-recording { background: #ef4444; box-shadow: 0 4px 12px rgba(239,68,68,0.4); animation: av-pulse 2s infinite; }
         @keyframes av-pulse { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 70% { box-shadow: 0 0 0 10px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
         .av-link-box { margin-top: 16px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; text-align: left; width: 100%; display: none; }
-        .av-link-box a { color: \` + themeColor + \`; font-weight: 500; text-decoration: none; word-break: break-all; font-size: 14px; }
+        .av-link-box a { color: #2563eb; font-weight: 500; text-decoration: none; word-break: break-all; font-size: 14px; }
         .av-link-box a:hover { text-decoration: underline; }
         .av-link-desc { font-size: 12px; color: #64748b; margin-top: 4px; }
     \`;
     document.head.appendChild(style);
-
-    var avatarContent = botIcon ? '<img src="' + botIcon + '" alt="Avatar">' : '🤖';
-    var fabContent = botIcon ? '<img src="' + botIcon + '" alt="Avatar">' : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
 
     container.innerHTML = \`
         <div class="av-window" id="av-window">
@@ -369,7 +229,7 @@ async function startServer() {
                 <button class="av-close" id="av-close">✕</button>
             </div>
             <div class="av-body">
-                <div class="av-avatar">\` + avatarContent + \`</div>
+                <div class="av-avatar">🤖</div>
                 <div class="av-status" id="av-status">Hi! How can I help?</div>
                 <div class="av-desc">Tap the button and start speaking.</div>
                 <button class="av-btn" id="av-start-btn">
@@ -382,7 +242,9 @@ async function startServer() {
                 </div>
             </div>
         </div>
-        <button class="av-fab" id="av-fab">\` + fabContent + \`</button>
+        <button class="av-fab" id="av-fab">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </button>
     \`;
 
     var fab = document.getElementById('av-fab');
@@ -413,9 +275,6 @@ async function startServer() {
     var isRecording = false;
     var isLimitReached = false;
     var ws = null;
-    var lastAudioSent = 0;
-    var slowConnectionWarning = false;
-    var slowConnTimeout = null;
     var inputAudioCtx = null;
     var outputAudioCtx = null;
     var mediaStream = null;
@@ -424,14 +283,10 @@ async function startServer() {
     async function checkUsage() {
       var latestCfg = window.VOICEGPT_CONFIG || config || {};
       var userId = latestCfg.userId;
-      if (!userId) {
-        log("No userId found for usage check");
-        return;
-      }
+      if (!userId) return;
       
       try {
         var response = await fetch(origin + '/api/usage-status/' + userId);
-        if (!response.ok) throw new Error("HTTP error " + response.status);
         var data = await response.json();
         if (data.allowed === false) {
           isLimitReached = true;
@@ -478,11 +333,11 @@ async function startServer() {
     }
 
     function playAudioChunk(outputCtx, base64) {
-      if (!outputCtx) return;
       var pcmMatch = base64ToPcm(base64);
       var buffer = outputCtx.createBuffer(1, pcmMatch.length, 24000);
       buffer.getChannelData(0).set(pcmMatch);
       var source = outputCtx.createBufferSource();
+      buffer.getChannelData(0).set(pcmMatch);
       source.buffer = buffer;
       source.connect(outputCtx.destination);
       var nextStart = nextStartTime;
@@ -502,9 +357,6 @@ async function startServer() {
             stopRecording();
             return;
         }
-
-        log("Starting connection...");
-        statusText.innerText = 'Connecting...';
 
         try {
             var latestCfg = window.VOICEGPT_CONFIG || config || {};
@@ -528,32 +380,21 @@ async function startServer() {
             if (linksObj && linksObj.length > 0) {
                 paramsObj.websiteLinks = JSON.stringify(linksObj);
             }
+            if (document && document.body) {
+                paramsObj.websiteContext = document.body.innerText.substring(0, 5000);
+            }
             var urlParams = new URLSearchParams(paramsObj).toString();
             
             var wsProtocol = origin.startsWith('https') ? 'wss://' : 'ws://';
             var wsOrigin = origin.replace('http://', '').replace('https://', '');
-            if (wsOrigin.startsWith('//')) wsOrigin = wsOrigin.substring(2);
-            
-            log("WebSocket URL:", wsProtocol + wsOrigin + '/live?' + urlParams);
             ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
             
             var AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) throw new Error("Your browser does not support audio recording.");
-
             inputAudioCtx = new AudioContext({ sampleRate: 16000 });
             outputAudioCtx = new AudioContext({ sampleRate: 24000 });
-            
-            await inputAudioCtx.resume();
-            await outputAudioCtx.resume();
-            
             nextStartTime = 0;
 
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                throw new Error("Your browser does not support microphone access.");
-            }
-
             mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            log("Microphone access granted");
             
             var source = inputAudioCtx.createMediaStreamSource(mediaStream);
             var processor = inputAudioCtx.createScriptProcessor(4096, 1, 1);
@@ -562,140 +403,67 @@ async function startServer() {
                 if (!ws || ws.readyState !== WebSocket.OPEN) return;
                 var inputData = e.inputBuffer.getChannelData(0);
                 var base64Data = pcmToBase64(inputData);
-                lastAudioSent = Date.now();
                 ws.send(JSON.stringify({ audio: base64Data }));
-                
-                if (!slowConnTimeout) {
-                    slowConnTimeout = setTimeout(function() {
-                        if (isRecording && !slowConnectionWarning) {
-                            slowConnectionWarning = true;
-                            statusText.innerText = 'Slow Connection...';
-                            statusText.style.color = '#f59e0b';
-                        }
-                    }, 5000);
-                }
             };
             
             source.connect(processor);
             processor.connect(inputAudioCtx.destination);
 
             var responseLogged = false;
-            ws.onopen = function() {
-              log("WebSocket connection established");
-              isRecording = true;
-              statusText.innerText = 'Listening...';
-              startBtn.classList.add('av-recording');
-              btnText.innerText = 'Stop Speaking';
-              
-              heartbeatInterval = setInterval(function() {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: 'ping' }));
-                }
-              }, 10000);
-              
-              if (document && document.body) {
-                  var context = document.body.innerText.substring(0, 3000);
-                  ws.send(JSON.stringify({ type: 'context', payload: context }));
-              }
-            };
-            
-            ws.onerror = function(e) {
-              log("WebSocket error:", e);
-              statusText.innerText = 'Connection error.';
-              stopRecording();
-            };
-            
-            ws.onclose = function() {
-              log("WebSocket closed");
-              if (isRecording) {
-                statusText.innerText = 'Connection lost.';
-                stopRecording();
-              }
-            };
-
             ws.onmessage = function(event) {
-                try {
-                    var msg = JSON.parse(event.data);
-                    if (msg.type === 'pong') return;
-                    if (msg.type === 'display_link') {
-                        linkBox.style.display = 'block';
-                        linkUrl.href = msg.payload.url;
-                        linkUrl.innerText = msg.payload.url;
-                        linkDesc.innerText = msg.payload.description;
-                    }
-                    if (msg.audio) {
-                        clearTimeout(slowConnTimeout);
-                        slowConnTimeout = null;
-                        if (slowConnectionWarning) {
-                            slowConnectionWarning = false;
-                            statusText.innerText = 'Listening...';
-                            statusText.style.color = '#10b981';
-                        }
-                        playAudioChunk(outputAudioCtx, msg.audio);
-                        
-                        if (!responseLogged) {
-                            responseLogged = true;
-                            var userId = (window.VOICEGPT_CONFIG || config || {}).userId;
-                            if (userId) {
-                                fetch(origin + '/api/log-message', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ userId: userId })
-                                }).catch(function(e) { log("Error logging message:", e); });
-                            }
+                var msg = JSON.parse(event.data);
+                if (msg.type === 'display_link') {
+                    linkBox.style.display = 'block';
+                    linkUrl.href = msg.payload.url;
+                    linkUrl.innerText = msg.payload.url;
+                    linkDesc.innerText = msg.payload.description;
+                }
+                if (msg.audio) {
+                    playAudioChunk(outputAudioCtx, msg.audio);
+                    
+                    if (!responseLogged) {
+                        responseLogged = true;
+                        var userId = (window.VOICEGPT_CONFIG || config || {}).userId;
+                        if (userId) {
+                            fetch(origin + '/api/log-message', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: userId })
+                            }).catch(function(e) { log("Error logging message:", e); });
                         }
                     }
-                    if (msg.interrupted) {
-                        nextStartTime = outputAudioCtx.currentTime;
-                        responseLogged = false;
-                    }
-                } catch(e) { log("Error parsing message:", e); }
+                }
+                if (msg.interrupted) {
+                    nextStartTime = outputAudioCtx.currentTime;
+                    responseLogged = false;
+                }
             };
             
-        } catch(e) {
-            log("Failed to start voice:", e);
-            if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-              statusText.innerText = 'Microphone permission denied.';
-              alert("Microphone permission was denied. Please allow it in your browser settings.");
-            } else {
-              statusText.innerText = 'Microphone access error.';
-              alert("Microphone access failed: " + (e.message || "Unknown error"));
+            isRecording = true;
+            statusText.innerText = 'Listening...';
+            startBtn.classList.add('av-recording');
+            btnText.innerText = 'Stop Speaking';
+            
+            if (!hasGreeted) {
+                hasGreeted = true;
+                statusText.innerText = 'Waking up...';
             }
-            stopRecording();
+        } catch(e) {
+            console.error("Failed to start voice:", e);
+            statusText.innerText = 'Microphone access denied.';
         }
     }
 
-    var heartbeatInterval = null;
-
     function stopRecording() {
-        log("Stopping recording...");
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-          heartbeatInterval = null;
-        }
-        if (ws) { 
-          try { ws.close(); } catch(e) {}
-          ws = null; 
-        }
-        if (mediaStream) { 
-          try { mediaStream.getTracks().forEach(function(t) { t.stop(); }); } catch(e) {}
-          mediaStream = null; 
-        }
-        if (inputAudioCtx) { 
-          try { inputAudioCtx.close(); } catch(e) {}
-          inputAudioCtx = null; 
-        }
-        if (outputAudioCtx) { 
-          try { outputAudioCtx.close(); } catch(e) {}
-          outputAudioCtx = null; 
-        }
+        if (ws) { ws.close(); ws = null; }
+        if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
+        if (inputAudioCtx) { inputAudioCtx.close(); inputAudioCtx = null; }
+        if (outputAudioCtx) { outputAudioCtx.close(); outputAudioCtx = null; }
         
         isRecording = false;
         startBtn.classList.remove('av-recording');
         btnText.innerText = 'Start Speaking';
-        if (statusText.innerText === 'Listening...') {
-            statusText.innerText = 'Ready';
-        }
+        statusText.innerText = 'Ready';
     }
     
     startBtn.onclick = toggleRecording;
@@ -718,66 +486,27 @@ async function startServer() {
   app.use(express.json());
 
   const server = http.createServer(app);
-
-  server.on('error', (err) => {
-    console.error('[SERVER] Server error:', err);
-  });
   
-  const ai = new GoogleGenAI({ 
-    apiKey: process.env.GEMINI_API_KEY!,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      }
-    }
-  });
-
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  
   app.post('/api/chat', async (req, res) => {
     try {
         if (!process.env.GEMINI_API_KEY) {
              console.error("GEMINI_API_KEY is missing");
              return res.status(500).json({ error: "API key is missing on the server." });
         }
-        const { message, config, context, userId } = req.body;
+        const { message, config, context } = req.body;
+        const websiteName = config.websiteName || 'Voice Agent';
+        const agentName = config.agentName || 'Agent';
+        const customInstructions = config.customInstructions || '';
         
-        let storedKnowledge = '';
-        let finalConfig = config;
-
-        if (userId) {
-          try {
-            const agentDoc = await adminDb.collection('agents').doc(`agent_${userId}`).get();
-            if (agentDoc.exists) {
-              const agentData = agentDoc.data();
-              storedKnowledge = agentData?.knowledge || '';
-              if (!finalConfig) finalConfig = agentData?.config;
-              console.log(`[CHAT] Loaded stored knowledge for user ${userId} (size: ${storedKnowledge.length})`);
-            } else {
-              console.log(`[CHAT] No stored agent found for user ${userId}, using defaults.`);
-            }
-          } catch (err: any) {
-            if (err.code === 5) {
-              console.log(`[CHAT] Agent collection/doc not found for user ${userId}, using defaults.`);
-            } else {
-              console.error('[CHAT] Error loading agent from Firestore:', err);
-            }
-          }
-        }
-
-        const websiteName = finalConfig?.websiteName || 'Voice Agent';
-        const agentName = finalConfig?.agentName || 'Agent';
-        const customInstructions = finalConfig?.customInstructions || '';
-        const personality = finalConfig?.personality || 'Friendly';
-        
-        let systemPrompt = `You are an incredibly ${personality.toLowerCase()} human receptionist for ${websiteName}. Your name is ${agentName}.
-Your primary goal is to answer user queries accurately using the Stored Knowledge and Current Context provided below.
+        let systemPrompt = `You are an incredibly friendly female receptionist for ${websiteName}. Your name is ${agentName}.
+Your primary goal is to answer user queries accurately. You have access to the text content of the webpage the user is currently looking at.
 NEVER MENTION that you are an AI, a virtual assistant, a bot, or a superhuman. You are a real human receptionist.
-Be extremely conversational, warm, and natural. Keep your statements brief and helpful.
+Be extremely conversational, warm, and natural. Keep your statements brief and to the point since it is a voice conversation.
 
-Current Page Context:
-${context || 'No specific page context provided.'}
-
-Stored Knowledge:
-${storedKnowledge || 'No specific stored knowledge available.'}
+Webpage Content:
+${context}
 
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
 
@@ -786,8 +515,32 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
             contents: [{ role: 'user', parts: [{ text: message || "Hello" }] }],
             config: {
                 systemInstruction: systemPrompt,
+                tools: [{
+                    functionDeclarations: [{
+                      name: "display_link",
+                      description: "Provide a relevant URL to the user based on their request.",
+                      parameters: {
+                        type: Type.OBJECT,
+                        properties: {
+                          url: { type: Type.STRING },
+                          description: { type: Type.STRING }
+                        },
+                        required: ["url", "description"]
+                      }
+                    }]
+                }]
             }
         });
+
+        const call = response.functionCalls?.[0];
+        if (call && call.name === "display_link") {
+            const args = call.args;
+            res.json({
+                reply: "I've brought up the link for you.",
+                link: args
+            });
+            return;
+        }
 
         res.json({ reply: response.text || "I'm sorry, I didn't catch that." });
     } catch (e: any) {
@@ -805,7 +558,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
         
         const response = await ai.models.generateContent({
             model: "gemini-3.5-flash",
-            contents: [{ role: 'user', parts: [{ text: prompt || "Write a short blog post about AI." }] }],
+            contents: prompt || "Write a short blog post about AI.",
             config: {
                 systemInstruction: systemInstruction || "You are a professional content writer."
             }
@@ -819,251 +572,174 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
   });
 
   const wss = new WebSocketServer({ server, path: '/live' });
-
-  const interval = setInterval(() => {
-    wss.clients.forEach((ws: any) => {
-      if (ws.isAlive === false) return ws.terminate();
-      ws.isAlive = false;
-      ws.ping();
-    });
-  }, 30000);
-
-  wss.on('connection', async (clientWs: any, req) => {
-    console.log(`[SERVER] New WebSocket connection from ${req.socket.remoteAddress}. URL: ${req.url}`);
-    clientWs.isAlive = true;
-    clientWs.on('pong', () => { clientWs.isAlive = true; });
+  
+  wss.on('connection', async (clientWs, req) => {
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-      console.log(`[SERVER] Connection params: ${url.search}`);
-      
-      // Try to load from Firestore first
-      const userId = url.searchParams.get('userId');
-      let agentConfig: any = null;
-      let storedKnowledge = '';
-
-      if (userId) {
-        console.log(`[SERVER] Fetching config for userId: ${userId}`);
-        try {
-          const agentDoc = await adminDb.collection('agents').doc(`agent_${userId}`).get();
-          if (agentDoc.exists) {
-            const agentData = agentDoc.data();
-            agentConfig = agentData?.config;
-            storedKnowledge = agentData?.knowledge || '';
-            console.log(`[SERVER] Loaded agent config from Firestore for user ${userId}. Website: ${agentConfig?.websiteName}`);
-          } else {
-            console.log(`[SERVER] No stored agent found for user ${userId} in Firestore. agentId: agent_${userId}`);
-          }
-        } catch (err: any) {
-          if (err.code === 5) {
-            console.log(`[SERVER] Agent doc not found for user ${userId} (collection might be empty)`);
-          } else {
-            console.error('[SERVER] Error loading agent from Firestore:', err);
-          }
-        }
-      }
-
-      const websiteName = url.searchParams.get('websiteName') || agentConfig?.websiteName || 'Acme Corp';
-      const agentName = url.searchParams.get('agentName') || agentConfig?.agentName || 'agent';
+      const websiteName = url.searchParams.get('websiteName') || 'Acme Corp';
+      const agentName = url.searchParams.get('agentName') || 'agent';
+      console.log(`Connection received for website: ${websiteName}, agent: ${agentName}`);
       const websiteLinksParam = url.searchParams.get('websiteLinks');
-      let websiteLinks: string[] = agentConfig?.websiteLinks || [];
+      let websiteLinks: string[] = [];
       try {
           if (websiteLinksParam) websiteLinks = JSON.parse(websiteLinksParam);
       } catch (e) {}
-      
-      const customInstructions = url.searchParams.get('customInstructions') || agentConfig?.customInstructions || '';
-      const voiceGender = url.searchParams.get('voiceGender') || agentConfig?.voiceGender || 'female';
-      const language = url.searchParams.get('language') || agentConfig?.language || 'English';
-      const personality = url.searchParams.get('personality') || agentConfig?.personality || 'Friendly';
-      const bookingEnabled = (url.searchParams.get('bookingEnabled') === 'true') || !!agentConfig?.bookingEnabled;
-      const bookingUrl = url.searchParams.get('bookingUrl') || agentConfig?.bookingUrl || '';
+      const customInstructions = url.searchParams.get('customInstructions') || '';
+      const voiceGender = url.searchParams.get('voiceGender') || 'female';
+      const language = url.searchParams.get('language') || 'English';
+      const personality = url.searchParams.get('personality') || 'Friendly';
+      const userId = url.searchParams.get('userId');
 
       let transcript = '';
-      let session: any = null;
-      let initialized = false;
-      let audioBuffer: string[] = [];
+      const startTime = Date.now();
 
-      const initSession = async (providedContext: string = '') => {
-        if (initialized) return;
-        initialized = true;
-        
-        let websiteContext = '';
-
-        // If we have stored knowledge, use it. Otherwise, fallback to real-time (but this is what we want to avoid)
-        if (storedKnowledge) {
-          console.log(`[SERVER] Using stored knowledge for ${agentName} (size: ${storedKnowledge.length})`);
-          websiteContext = storedKnowledge;
-        } else if (websiteLinks.length > 0) {
-          console.log(`[SERVER] No stored knowledge, falling back to real-time fetch for ${agentName}`);
+      let clientContext = url.searchParams.get('websiteContext') || '';
+      let fetchedContext = '';
+      if (websiteLinks.length > 0) {
           try {
-              const jinaPromises = websiteLinks.map(async (link) => {
+              for (const link of websiteLinks) {
                   try {
+                      // Try r.jina.ai first as it cleanly extracts markdown from any modern URL, SPA, TikTok, Cloudflare protected sites, etc.
                       const jinaUrl = `https://r.jina.ai/${link}`;
-                      const jinaRes = await axios.get(jinaUrl, { timeout: 3000 });
+                      const jinaRes = await axios.get(jinaUrl, { timeout: 6000 });
                       if (jinaRes.data && typeof jinaRes.data === 'string' && jinaRes.data.length > 50) {
-                          return `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
+                          fetchedContext += `\n--- CONTENT FROM ${link} ---\n` + jinaRes.data.substring(0, 4000) + '\n';
+                          continue;
                       }
                   } catch (e) {}
-                  return '';
-              });
-              const results = await Promise.all(jinaPromises);
-              websiteContext = results.join('').trim();
-          } catch (e) { console.error("Failed to fetch context", e); }
-        }
 
-        if (!websiteContext) {
-            websiteContext = providedContext.trim() || `General FAQ for ${websiteName}.`;
-        } else if (providedContext.trim()) {
-            // Append provided context (e.g. current page text) to stored knowledge
-            websiteContext = `Current Page Context:\n${providedContext.trim()}\n\nStored Knowledge:\n${websiteContext}`;
-        }
+                  try {
+                      const response = await axios.get(link, { 
+                          timeout: 5000,
+                          headers: {
+                              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                          }
+                      });
+                      const $ = cheerio.load(response.data);
+                      $('script, style, nav, footer, noscript, iframe').remove();
+                      fetchedContext += `\n--- CONTENT FROM ${link} ---\n` + $('body').text().replace(/\s+/g, ' ').trim() + '\n';
+                  } catch (e) {
+                      console.error(`Failed to fetch ${link}`, e);
+                  }
+              }
+          } catch (e) {
+              console.error("Failed to fetch website context", e);
+          }
+      }
 
-        const systemPrompt = `You are an incredibly ${personality.toLowerCase()} ${voiceGender} receptionist representing ${websiteName}. Your name is ${agentName}.
+      let websiteContext = fetchedContext.trim();
+      if (!websiteContext && websiteLinks.length === 0 && clientContext.trim()) {
+          websiteContext = clientContext.substring(0, 8000);
+      }
+      if (!websiteContext) {
+          websiteContext = `General FAQ and business details for ${websiteName}.${websiteLinks.length > 0 ? ` Official website URLs: ${websiteLinks.join(', ')}.` : ''}`;
+      }
+
+      const systemPrompt = `You are an incredibly ${personality.toLowerCase()} ${voiceGender} receptionist representing ${websiteName}. Your name is ${agentName}.
 Your primary goal is to answer user queries accurately based ONLY on the provided Website Data for ${websiteName} below.
-NEVER MENTION that you are an AI. You are a real human receptionist for ${websiteName}.
-CRITICAL: You MUST ONLY speak in ${language}.
-Your tone should be consistently ${personality.toLowerCase()}. Use natural fillers like 'ummm', 'hmmm' to sound real.
+CRITICAL MANDATE: You represent ${websiteName}. Do NOT discuss unrelated websites or products even if stray text appears in your context.
+If the user asks something outside the scope of ${websiteName}, politely inform them that you do not have that information.
+NEVER MENTION that you are an AI, a virtual assistant, a bot, or a superhuman. You are a real human receptionist for ${websiteName}.
+CRITICAL MANDATE: You MUST ONLY speak in ${language}.
+Your tone should be consistently ${personality.toLowerCase()}. Be conversational and natural. Use natural human conversational fillers like 'ummm', 'hmmm', 'let me see', and slight pauses to sound like a real person thinking. Keep your statements brief and to the point since it is a voice conversation.
 
-${bookingEnabled && bookingUrl ? `CRITICAL: If the user wants to book, collect name/email and call display_booking. URL: ${bookingUrl}` : ''}
+If the user asks about a specific feature, offering, paid plan, pricing, or contact details, you MUST use the \`display_link\` tool to show them the relevant URL. Deduce the URL from the known pages (${websiteLinks.join(', ')}) if necessary.
+Once you call the tool, naturally tell the user that you've just put the link on their screen.
 
-Website Data (${websiteName}):
+Website Data for Context (${websiteName}):
 ${websiteContext}
 
-${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
+${customInstructions ? `Additional instructions from ${websiteName}: ${customInstructions}` : ''}`;
 
-        try {
-          if (!process.env.GEMINI_API_KEY) {
-            throw new Error("GEMINI_API_KEY is not configured in your Render environment variables. Please add GEMINI_API_KEY in your Render dashboard settings under Environment.");
-          }
-          const modelsToTry = ["gemini-3.1-flash-live-preview", "gemini-2.5-flash", "gemini-2.0-flash-exp"];
-          let lastError: any = null;
-          for (const modelName of modelsToTry) {
-            try {
-              console.log(`[SERVER] Attempting to connect to Live API using model: ${modelName}`);
-              session = await ai.live.connect({
-                model: modelName,
-                config: {
-                  responseModalities: [Modality.AUDIO],
-                  speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Zephyr' } },
-                  },
-                  systemInstruction: { parts: [{ text: systemPrompt }] },
-                  tools: [{
-                    functionDeclarations: [{
-                      name: "display_link",
-                      description: "Displays a relevant URL to the user.",
-                      parameters: {
-                        type: Type.OBJECT,
-                        properties: {
-                          url: { type: Type.STRING },
-                          description: { type: Type.STRING }
-                        },
-                        required: ["url", "description"]
-                      }
-                    }, {
-                      name: "display_booking",
-                      description: "Displays the booking widget.",
-                      parameters: { type: Type.OBJECT, properties: {}, required: [] }
-                    }]
-                  }]
+      const session = await ai.live.connect({
+        model: "gemini-3.1-flash-live-preview",
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceGender === 'male' ? 'Charon' : 'Aoede' } },
+          },
+          systemInstruction: {
+             parts: [{ text: systemPrompt }]
+          },
+          tools: [{
+            functionDeclarations: [{
+              name: "display_link",
+              description: "Displays a relevant URL/link on the user's screen when they ask for a specific page (e.g. pricing, contact).",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  url: { type: Type.STRING, description: "The URL to display to the user" },
+                  description: { type: Type.STRING, description: "A brief description of what the link is for" }
                 },
-                callbacks: {
-                  onopen: () => {
-                    console.log(`\nLive API OPENED with model ${modelName}`);
-                  },
-                  onerror: (err: any) => {
-                    const errMsg = err?.message || String(err);
-                    console.log(`\nLive API ERROR (${modelName}): ` + errMsg);
-                    try {
-                      clientWs.send(JSON.stringify({ error: `Live API Error (${modelName}): ${errMsg}` }));
-                    } catch (e) {}
-                  },
-                  onclose: (err: any) => {
-                    console.log(`\nLive API CLOSED (${modelName}): ` + JSON.stringify(err));
-                    try {
-                      clientWs.send(JSON.stringify({ error: `Live API session closed by Google servers (${modelName}).` }));
-                    } catch (e) {}
-                  },
-                  onmessage: (message: LiveServerMessage) => {
-                    console.log("\nRECEIVED MSG: " + JSON.stringify(Object.keys(message || {})));
-                    if (message.toolCall) {
-                       const functionCalls = message.toolCall.functionCalls;
-                       if (functionCalls && functionCalls.length > 0) {
-                          const call = functionCalls[0];
-                          if (call.name === "display_link") {
-                              clientWs.send(JSON.stringify({ type: "display_link", payload: call.args }));
-                              session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
-                          } else if (call.name === "display_booking") {
-                              clientWs.send(JSON.stringify({ type: "display_booking" }));
-                              session.sendToolResponse({ functionResponses: [{ id: call.id, name: call.name, response: { result: "Success" } }] });
-                          }
-                       }
-                    }
-                    const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-                    if (audio) clientWs.send(JSON.stringify({ audio }));
-                    const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
-                    if (text) transcript += `Agent: ${text}\n`;
-                    if (message.serverContent?.interrupted) clientWs.send(JSON.stringify({ interrupted: true }));
-                  },
-                },
-              });
-              console.log(`[SERVER] Successfully connected to Live API using model: ${modelName}`);
-              lastError = null;
-              break;
-            } catch (err: any) {
-              console.warn(`[SERVER] Failed to connect using model ${modelName}:`, err?.message || err);
-              lastError = err;
+                required: ["url", "description"]
+              }
+            }]
+          }]
+        },
+        callbacks: {
+          onmessage: (message: LiveServerMessage) => {
+            if (message.toolCall) {
+               const functionCalls = message.toolCall.functionCalls;
+               if (functionCalls && functionCalls.length > 0) {
+                  const call = functionCalls[0];
+                  if (call.name === "display_link") {
+                      clientWs.send(JSON.stringify({
+                         type: "display_link",
+                         payload: call.args
+                      }));
+                      
+                      session.sendToolResponse({
+                          functionResponses: [{
+                              id: call.id,
+                              name: call.name,
+                              response: { result: "Link displayed to user successfully." }
+                          }]
+                      });
+                  }
+               }
             }
-          }
-
-          if (lastError) {
-            throw lastError;
-          }
-          
-          // Flush buffered audio
-          if (audioBuffer.length > 0) {
-            console.log(`[SERVER] Flushing ${audioBuffer.length} buffered audio chunks`);
-            for (const chunk of audioBuffer) {
-              session.sendRealtimeInput({ audio: { data: chunk, mimeType: "audio/pcm;rate=16000" } });
+            
+            const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+            if (audio) {
+              clientWs.send(JSON.stringify({ audio }));
             }
-          }
-          audioBuffer = [];
-          
-          session.sendClientContent({ turns: [{ role: "user", parts: [{ text: "Hello! Please greet me briefly." }] }], turnComplete: true });
-        } catch (err: any) {
-          console.error("Failed to connect to Live API:", err);
-          const errorMsg = err?.message || String(err);
-          try {
-            clientWs.send(JSON.stringify({ 
-              error: `Live API Connection Failed: ${errorMsg}` 
-            }));
-          } catch (wsErr) {}
-          setTimeout(() => {
-            try { clientWs.close(); } catch (e) {}
-          }, 1500);
-        }
-      };
 
-      // Set a timeout to initialize if no context message arrives
-      const contextTimeout = setTimeout(() => initSession(), 3000);
+            // Capture text transcript from model
+            const text = message.serverContent?.modelTurn?.parts?.[0]?.text;
+            if (text) {
+              transcript += `Agent: ${text}\n`;
+            }
 
-      clientWs.on("message", async (data: any) => {
+            // Capture user transcript if provided by the API
+            const userText = (message.serverContent as any)?.userContent?.parts?.[0]?.text || (message.serverContent as any)?.transcription?.text;
+            if (userText) {
+              transcript += `User: ${userText}\n`;
+            }
+
+            if (message.serverContent?.interrupted) {
+              clientWs.send(JSON.stringify({ interrupted: true }));
+            }
+          },
+        },
+      });
+
+      // Start conversation
+      session.sendRealtimeInput({
+         text: "Hello! I am a user starting a voice conversation. Please greet me briefly and ask how you can help me."
+      });
+      
+      clientWs.on("message", (data) => {
         try {
            const parsed = JSON.parse(data.toString());
-           if (parsed.type === 'ping') {
-             clientWs.send(JSON.stringify({ type: 'pong' }));
-             return;
+           if (parsed.audio) {
+             session.sendRealtimeInput({
+               audio: { data: parsed.audio, mimeType: "audio/pcm;rate=16000" },
+             });
            }
-           if (parsed.type === 'context') {
-             clearTimeout(contextTimeout);
-             await initSession(parsed.payload);
-           } else if (parsed.audio) {
-             if (session) {
-               session.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: parsed.audio } });
-             } else {
-               audioBuffer.push(parsed.audio);
-             }
-           }
-        } catch (e) { console.error("WS Message Error:", e); }
+        } catch (e) {
+          console.error("Error parsing message from client", e);
+        }
       });
 
       clientWs.on("close", async () => {
@@ -1091,11 +767,7 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
   });
 
 
-  const isProduction = process.env.NODE_ENV === 'production' || 
-                       !process.argv.some(arg => arg.includes('server.ts')) ||
-                       fs.existsSync(path.join(process.cwd(), 'dist/index.html'));
-
-  if (!isProduction) {
+  if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
