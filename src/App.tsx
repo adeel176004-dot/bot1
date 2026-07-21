@@ -1754,7 +1754,7 @@ export default function App() {
                   </motion.div>
               )}
           </AnimatePresence>
-          <SupportAgent config={saasConfig} userId={user?.id} />
+          <SupportAgent userId={user?.id} />
           <AuthModal 
             isOpen={showAuth} 
             onClose={() => setShowAuth(false)} 

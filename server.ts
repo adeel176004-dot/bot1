@@ -386,24 +386,6 @@ async function startServer() {
             var wsProtocol = origin.startsWith('https') ? 'wss://' : 'ws://';
             var wsOrigin = origin.replace('http://', '').replace('https://', '');
             
-            try {
-                var initRes = await fetch(origin + '/api/init-live-session', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(paramsObj)
-                });
-                var initData = await initRes.json();
-                if (initData.sessionId) {
-                    ws = new WebSocket(wsProtocol + wsOrigin + '/live?sessionId=' + initData.sessionId);
-                } else {
-                    throw new Error("No session ID returned");
-                }
-            } catch (err) {
-                log("Falling back to query parameters due to init error:", err);
-                var urlParams = new URLSearchParams(paramsObj).toString();
-                ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
-            }
-            
             var AudioContext = window.AudioContext || window.webkitAudioContext;
             inputAudioCtx = new AudioContext({ sampleRate: 16000 });
             outputAudioCtx = new AudioContext({ sampleRate: 24000 });
@@ -423,6 +405,24 @@ async function startServer() {
             
             source.connect(processor);
             processor.connect(inputAudioCtx.destination);
+
+            try {
+                var initRes = await fetch(origin + '/api/init-live-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(paramsObj)
+                });
+                var initData = await initRes.json();
+                if (initData.sessionId) {
+                    ws = new WebSocket(wsProtocol + wsOrigin + '/live?sessionId=' + initData.sessionId);
+                } else {
+                    throw new Error("No session ID returned");
+                }
+            } catch (err) {
+                log("Falling back to query parameters due to init error:", err);
+                var urlParams = new URLSearchParams(paramsObj).toString();
+                ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
+            }
 
             var responseLogged = false;
             ws.onmessage = function(event) {
