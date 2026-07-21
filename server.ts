@@ -383,11 +383,26 @@ async function startServer() {
             if (document && document.body) {
                 paramsObj.websiteContext = document.body.innerText.substring(0, 5000);
             }
-            var urlParams = new URLSearchParams(paramsObj).toString();
-            
             var wsProtocol = origin.startsWith('https') ? 'wss://' : 'ws://';
             var wsOrigin = origin.replace('http://', '').replace('https://', '');
-            ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
+            
+            try {
+                var initRes = await fetch(origin + '/api/init-live-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(paramsObj)
+                });
+                var initData = await initRes.json();
+                if (initData.sessionId) {
+                    ws = new WebSocket(wsProtocol + wsOrigin + '/live?sessionId=' + initData.sessionId);
+                } else {
+                    throw new Error("No session ID returned");
+                }
+            } catch (err) {
+                log("Falling back to query parameters due to init error:", err);
+                var urlParams = new URLSearchParams(paramsObj).toString();
+                ws = new WebSocket(wsProtocol + wsOrigin + '/live?' + urlParams);
+            }
             
             var AudioContext = window.AudioContext || window.webkitAudioContext;
             inputAudioCtx = new AudioContext({ sampleRate: 16000 });
@@ -571,29 +586,57 @@ ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}`;
     }
   });
 
+  const sessionStore = new Map<string, any>();
+
+  app.post('/api/init-live-session', (req, res) => {
+    try {
+      const sessionId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      sessionStore.set(sessionId, req.body);
+      // Clean up if the websocket doesn't connect within 30 seconds
+      setTimeout(() => sessionStore.delete(sessionId), 30000);
+      res.json({ sessionId });
+    } catch (err) {
+      console.error('[SERVER] Error in init-live-session:', err);
+      res.status(500).json({ error: 'Failed to init session' });
+    }
+  });
+
   const wss = new WebSocketServer({ server, path: '/live' });
   
   wss.on('connection', async (clientWs, req) => {
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-      const websiteName = url.searchParams.get('websiteName') || 'Acme Corp';
-      const agentName = url.searchParams.get('agentName') || 'agent';
+      
+      const sessionId = url.searchParams.get('sessionId');
+      const sessionData = sessionId ? (sessionStore.get(sessionId) || {}) : {};
+      
+      // Clean up after fetching
+      if (sessionId) sessionStore.delete(sessionId);
+
+      const websiteName = sessionData.websiteName || url.searchParams.get('websiteName') || 'Acme Corp';
+      const agentName = sessionData.agentName || url.searchParams.get('agentName') || 'agent';
       console.log(`Connection received for website: ${websiteName}, agent: ${agentName}`);
+      
       const websiteLinksParam = url.searchParams.get('websiteLinks');
       let websiteLinks: string[] = [];
-      try {
-          if (websiteLinksParam) websiteLinks = JSON.parse(websiteLinksParam);
-      } catch (e) {}
-      const customInstructions = url.searchParams.get('customInstructions') || '';
-      const voiceGender = url.searchParams.get('voiceGender') || 'female';
-      const language = url.searchParams.get('language') || 'English';
-      const personality = url.searchParams.get('personality') || 'Friendly';
-      const userId = url.searchParams.get('userId');
+      
+      const rawLinks = sessionData.websiteLinks || websiteLinksParam;
+      if (rawLinks) {
+          try {
+              websiteLinks = typeof rawLinks === 'string' ? JSON.parse(rawLinks) : rawLinks;
+          } catch (e) {}
+      }
+      
+      const customInstructions = sessionData.customInstructions || url.searchParams.get('customInstructions') || '';
+      const voiceGender = sessionData.voiceGender || url.searchParams.get('voiceGender') || 'female';
+      const language = sessionData.language || url.searchParams.get('language') || 'English';
+      const personality = sessionData.personality || url.searchParams.get('personality') || 'Friendly';
+      const userId = sessionData.userId || url.searchParams.get('userId');
 
       let transcript = '';
       const startTime = Date.now();
 
-      let clientContext = url.searchParams.get('websiteContext') || '';
+      let clientContext = sessionData.websiteContext || url.searchParams.get('websiteContext') || '';
       let fetchedContext = '';
       if (websiteLinks.length > 0) {
           try {
